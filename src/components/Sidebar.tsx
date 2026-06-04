@@ -1,0 +1,122 @@
+import React from 'react';
+import { useProjectStore } from '../store/projectStore';
+import { Trash2, UserPlus } from 'lucide-react';
+
+const Sidebar: React.FC = () => {
+  const performers = useProjectStore(state => state.data.performers);
+  const sets = useProjectStore(state => state.data.sets);
+  const currentSetIndex = useProjectStore(state => state.currentSetIndex);
+  
+  // ดึงฟังก์ชันจัดการโมเดลข้อมูลทั้งหมดจาก Store
+  const addPerformer = useProjectStore(state => state.addPerformer);
+  const removePerformer = useProjectStore(state => state.removePerformer);
+  const updatePerformer = useProjectStore(state => state.updatePerformer);
+  
+  const selectedPerformerId = useProjectStore(state => state.selectedPerformerId);
+  const setSelectedPerformerId = useProjectStore(state => state.setSelectedPerformerId);
+
+  const currentSet = sets[currentSetIndex];
+
+  // ➕ ฟังก์ชันเพิ่มขบวนนักแสดงใหม่แบบรันเลขอัตโนมัติ
+  const handleAddPerformer = () => {
+    // ดึงเฉพาะนักแสดงที่มี ID ขึ้นต้นด้วยตัว 'P' มาคำนวณรันนิ่งนัมเบอร์
+    const pPerformers = performers.filter(p => p.id.startsWith('P'));
+    const nextNumber = pPerformers.length + 1;
+    const newId = `P${nextNumber.toString().padStart(2, '0')}`;
+
+    // ชุดสีมาตรฐานสำหรับขบวนมาร์ชชิ่ง
+    const defaultColors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
+    const assignedColor = defaultColors[performers.length % defaultColors.length];
+
+    const newPerformer = {
+      id: newId,
+      name: `Trumpet ${nextNumber}`,
+      color: assignedColor,
+      symbol: 'x'
+    };
+
+    addPerformer(newPerformer);
+    setSelectedPerformerId(newId); // ไฮไลท์คนที่เพิ่งสร้างทันที
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full p-3 gap-3 overflow-y-auto">
+      {/* หัวข้อแถบข้างพร้อมปุ่มกดเพิ่มนักแสดง */}
+      <div className="flex items-center justify-between border-b border-slate-700 pb-2 shrink-0">
+        <h3 className="font-bold text-sm text-slate-300">Performers ({performers.length})</h3>
+        <button
+          onClick={handleAddPerformer}
+          className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-2.5 py-1.5 rounded flex items-center gap-1 transition shadow-md shadow-cyan-500/10"
+        >
+          <UserPlus size={14} />
+          <span>เพิ่มคน</span>
+        </button>
+      </div>
+
+      {/* รายการการ์ดนักแสดงทั้งหมด */}
+      <div className="flex flex-col gap-2">
+        {performers.map((p) => {
+          const position = currentSet?.positions?.[p.id] || { x: 0, y: 0 };
+          const isSelected = selectedPerformerId === p.id;
+          const coordinateText = `X: ${position.x.toFixed(1)}, Y: ${position.y.toFixed(1)}`;
+
+          return (
+            <div
+              key={p.id}
+              onClick={() => setSelectedPerformerId(p.id)}
+              className={`p-3 rounded-lg border transition-all cursor-pointer flex flex-col gap-2 ${
+                isSelected
+                  ? 'bg-cyan-950/60 border-cyan-400 shadow-md shadow-cyan-500/10'
+                  : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 text-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 font-bold text-cyan-400">
+                    {p.id}
+                  </span>
+                  <input
+                    type="text"
+                    value={p.name}
+                    onClick={(e) => e.stopPropagation()} // บล็อกไม่ให้การคลิกช่องพิมพ์ไปเปิดไฮไลท์ซ้ำซ้อน
+                    onChange={(e) => updatePerformer(p.id, { name: e.target.value })}
+                    className="bg-transparent font-medium text-xs focus:outline-none focus:border-b border-slate-500 w-28 text-slate-100"
+                  />
+                </div>
+                
+                {/* ปุ่มลบนักแสดง */}
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    removePerformer(p.id);
+                  }}
+                  className="text-slate-500 hover:text-rose-400 transition p-1"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+
+              {/* ป้ายแสดงสัญลักษณ์สีวงกลม พร้อมพิกัดจุดพล็อตสนาม */}
+              <div className="flex items-center justify-between text-[11px] font-mono mt-1">
+                <div className="flex items-center gap-1.5">
+                  <div 
+                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold" 
+                    style={{ backgroundColor: p.color }}
+                  >
+                    {p.symbol}
+                  </div>
+                  <span className="text-slate-400">พิกัดปัจจุบัน:</span>
+                </div>
+                <span className="text-cyan-400 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/60">
+                  {coordinateText}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar;
