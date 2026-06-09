@@ -66,7 +66,6 @@ const MarchingCanvas: React.FC = () => {
 
     // 🛠️ ตรวจจับการคลิกเลือกวัตถุบน Canvas เพื่อไฮไลท์ฝั่ง Sidebar ซ้าย
     const handleSelection = (e: any) => {
-      // ตรวจสอบชิ้นส่วนเดี่ยวที่ถูกเลือก
       if (e.selected && e.selected.length === 1) {
         const targetObj = e.selected[0];
         if (targetObj && targetObj.id) {
@@ -210,8 +209,9 @@ const MarchingCanvas: React.FC = () => {
       }
     }
 
+    // 🛠️ แอนิเมชันคำนวณเซ็ตเป้าหมาย (setB) ให้ถูกต้องตามช่วงวินาทีจริง ไม่พุ่งทะลุไปเซ็ตสุดท้าย
     const setA = idx > 0 ? sets[idx - 1] : sets[0];
-    const setB = sets[sets.length - 1];
+    const setB = sets[idx] || sets[sets.length - 1]; // 👈 แก้ไขจากเดิมที่เป็น sets[sets.length - 1]
 
     const startTime = idx > 0 ? cumulative[idx - 1] : 0;
     const endTime = cumulative[idx] || startTime;
