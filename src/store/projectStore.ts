@@ -28,12 +28,19 @@ export interface ProjectData {
   sets: SetData[];
 }
 
+export interface CanvasConfig {
+  width: number;
+  height: number;
+  scale: number;
+}
+
 interface ProjectState {
   data: ProjectData;
-  currentSetIndex: number;
+  currentSetIndex: number; // ใช้ระบุเซ็ตที่เลือก/แสดงอยู่ปัจจุบัน
   currentTime: number;
   isPlaying: boolean;
   selectedPerformerId: string | null;
+  canvasConfig: CanvasConfig; // สเตตเก็บขนาดสนามและสเกลที่เพิ่มเข้ามาใหม่
 
   setData: (data: ProjectData) => void;
   updateMetadata: (meta: Partial<Metadata>) => void;
@@ -44,7 +51,8 @@ interface ProjectState {
 
   addSet: (set: SetData) => void;
   updateSetPositions: (setIndex: number, performerId: string, x: number, y: number) => void;
-  updateSetDuration: (setId: string, newDuration: number) => void;
+  updateSetTitle: (setIndex: number, title: string) => void; // ฟังก์ชันอัปเดตชื่อเซ็ต
+  updateSetDuration: (setIndex: number, newDuration: number) => void; // 🛠️ รวมเหลือตัวเดียว รับเป็น Index ปลอดภัยที่สุด
 
   setCurrentSetIndex: (index: number) => void;
   setCurrentTime: (time: number) => void;
@@ -54,6 +62,7 @@ interface ProjectState {
   removeSet: (setIndex: number) => void;
 
   setSelectedPerformerId: (id: string | null) => void;
+  updateCanvasSize: (width: number, height: number) => void; // ฟังก์ชันปรับขนาดสนาม
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -67,7 +76,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       {
         setNumber: 0,
         title: 'Start',
-        duration: 0,
+        duration: 0, // เซ็ตแรกสุดเป็นจุดสตาร์ท เริ่มที่ 0 วินาทีเสมอ
         positions: {
           'P01': { x: -3, y: 4 },
           'C01': { x: 0, y: 2 }
@@ -88,6 +97,13 @@ export const useProjectStore = create<ProjectState>((set) => ({
   currentTime: 0,
   isPlaying: false,
   selectedPerformerId: null,
+  
+  // ค่าเริ่มต้นของ Canvas กำหนดไว้ที่นี่
+  canvasConfig: {
+    width: 1200,
+    height: 600,
+    scale: 50,
+  },
 
   setData: (data) => set({ data }),
 
@@ -143,16 +159,24 @@ export const useProjectStore = create<ProjectState>((set) => ({
     return { data: { ...state.data, sets: newSets } };
   }),
 
-  updateSetDuration: (setId, newDuration) => set((state) => ({
-    data: {
-      ...state.data,
-      sets: state.data.sets.map((s) =>
-        s.setNumber.toString() === setId
-          ? { ...s, duration: newDuration }
-          : s
-      )
+  // 🛠️ ปรับปรุงลอจิกให้รับค่าเป็น Index และมีระบบ Safe-Guard ป้องกันวิเป็น 0 หรือติดลบ
+  updateSetDuration: (setIndex, newDuration) => set((state) => {
+    const newSets = [...state.data.sets];
+    if (newSets[setIndex]) {
+      // เซ็ตที่ 0 บังคับเป็น 0 วินาทีเสมอ ส่วนเซ็ตที่เหลือต้องมีเวลาขั้นต่ำอย่างน้อย 0.5 วินาที
+      newSets[setIndex].duration = setIndex === 0 ? 0 : Math.max(0.5, newDuration);
     }
-  })),
+    return { data: { ...state.data, sets: newSets } };
+  }),
+
+  // ฟังก์ชันอัปเดตชื่อเซ็ต
+  updateSetTitle: (setIndex, title) => set((state) => {
+    const newSets = [...state.data.sets];
+    if (newSets[setIndex]) {
+      newSets[setIndex].title = title;
+    }
+    return { data: { ...state.data, sets: newSets } };
+  }),
 
   setCurrentSetIndex: (index) => set({ currentSetIndex: index }),
   setCurrentTime: (time) => set({ currentTime: time }),
@@ -198,4 +222,13 @@ export const useProjectStore = create<ProjectState>((set) => ({
   }),
 
   setSelectedPerformerId: (id) => set({ selectedPerformerId: id }),
+
+  // ฟังก์ชันปรับขนาดสนาม
+  updateCanvasSize: (width, height) => set((state) => ({
+    canvasConfig: {
+      width,
+      height,
+      scale: state.canvasConfig.scale 
+    }
+  })),
 }));

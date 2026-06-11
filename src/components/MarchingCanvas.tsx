@@ -1,9 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as fabric from 'fabric';
-import { 
-  CANVAS_WIDTH, CANVAS_HEIGHT, 
-  gridToCanvas, canvasToGrid, snapToInterval 
-} from '../core/gridMath';
+import { gridToCanvas, canvasToGrid, snapToInterval } from '../core/gridMath';
 import { useProjectStore } from '../store/projectStore';
 
 const MarchingCanvas: React.FC = () => {
@@ -18,22 +15,27 @@ const MarchingCanvas: React.FC = () => {
   const isPlaying = useProjectStore(state => state.isPlaying);
   const currentTime = useProjectStore(state => state.currentTime);
   
-  // 👈 ดึง State การเลือกนักแสดงมาใช้งานบน Canvas
+  // ดึงสเตตการเลือกนักแสดงมาใช้งาน
   const selectedPerformerId = useProjectStore(state => state.selectedPerformerId);
   const setSelectedPerformerId = useProjectStore(state => state.setSelectedPerformerId);
 
-  // 1. Initialize Canvas and Draw Grid (Runs Once)
+  // 🛠️ 1. ดึง config ขนาดสนามไดนามิกมาจาก Store แทนไฟล์คณิตศาสตร์เดิม
+  const canvasConfig = useProjectStore(state => state.canvasConfig);
+
+  // Initialize Canvas and Draw Grid
   useEffect(() => {
     if (!canvasRef.current) return;
     
+    // 🛠️ ปรับขนาด Canvas ตาม canvasConfig จากสเตต
     const canvas = new fabric.Canvas(canvasRef.current, {
-      width: CANVAS_WIDTH,
-      height: CANVAS_HEIGHT,
+      width: canvasConfig.width,
+      height: canvasConfig.height,
       selection: true, // Group selection
     });
     fabricCanvas.current = canvas;
 
-    drawGrid(canvas);
+    // 🛠️ ส่งค่ามิติฝั่งสเตตไปให้ฟังก์ชันวาดตาราง
+    drawGrid(canvas, canvasConfig.width, canvasConfig.height, canvasConfig.scale);
 
     // Live Snap while dragging
     canvas.on('object:moving', (e) => {
@@ -42,8 +44,15 @@ const MarchingCanvas: React.FC = () => {
       const target = e.target;
       if (!target) return;
       
-      const { gridX, gridY } = canvasToGrid(target.left || 0, target.top || 0);
-      const { x, y } = gridToCanvas(snapToInterval(gridX, 0.5), snapToInterval(gridY, 0.5));
+      // 🛠️ ส่งขนาดสนามเข้าฟังก์ชันคำนวณแบบไดนามิก
+      const { gridX, gridY } = canvasToGrid(
+        target.left || 0, target.top || 0, 
+        canvasConfig.width, canvasConfig.height, canvasConfig.scale
+      );
+      const { x, y } = gridToCanvas(
+        snapToInterval(gridX, 0.5), snapToInterval(gridY, 0.5), 
+        canvasConfig.width, canvasConfig.height, canvasConfig.scale
+      );
       target.set({ left: x, top: y });
     });
 
@@ -64,7 +73,7 @@ const MarchingCanvas: React.FC = () => {
       }
     });
 
-    // 🛠️ ตรวจจับการคลิกเลือกวัตถุบน Canvas เพื่อไฮไลท์ฝั่ง Sidebar ซ้าย
+    // ตรวจจับการคลิกเลือกวัตถุบน Canvas
     const handleSelection = (e: any) => {
       if (e.selected && e.selected.length === 1) {
         const targetObj = e.selected[0];
@@ -72,7 +81,6 @@ const MarchingCanvas: React.FC = () => {
           setSelectedPerformerId(targetObj.id);
         }
       } else {
-        // หากเลือกหลายคนพร้อมกัน หรือไม่ได้เลือกใคร ให้ล้างค่าไฮไลท์
         setSelectedPerformerId(null);
       }
     };
@@ -85,14 +93,23 @@ const MarchingCanvas: React.FC = () => {
       canvas.dispose();
       performersGroups.current.clear();
     };
-  }, [setSelectedPerformerId]); // ปลอดภัยตามหลัก React Hooks
+    // 🛠️ เฝ้าระวังเมื่อสไลเดอร์มีการเลื่อนหรือขนาดสนามเปลี่ยนไป
+  }, [canvasConfig.width, canvasConfig.height, canvasConfig.scale, setSelectedPerformerId]);
 
+  // ฟังก์ชันอัปเดตตำแหน่งเมื่อลากวางเสร็จ
   const updatePosition = (obj: any) => {
-    const { gridX, gridY } = canvasToGrid(obj.left || 0, obj.top || 0);
+    // 🛠️ ส่งค่า config เข้าไปคำนวณพิกัดให้ถูกต้องตามขนาดสนามจริงขณะนั้น
+    const { gridX, gridY } = canvasToGrid(
+      obj.left || 0, obj.top || 0, 
+      canvasConfig.width, canvasConfig.height, canvasConfig.scale
+    );
     const finalGridX = snapToInterval(gridX, 0.5);
     const finalGridY = snapToInterval(gridY, 0.5);
     
-    const { x, y } = gridToCanvas(finalGridX, finalGridY);
+    const { x, y } = gridToCanvas(
+      finalGridX, finalGridY, 
+      canvasConfig.width, canvasConfig.height, canvasConfig.scale
+    );
     obj.set({ left: x, top: y });
     obj.setCoords();
     
@@ -104,10 +121,12 @@ const MarchingCanvas: React.FC = () => {
     );
   };
 
-  const drawGrid = (canvas: fabric.Canvas) => {
+  // 🛠️ ปรับฟังก์ชันวาดตารางให้รับ Parameter ไดนามิก
+  const drawGrid = (canvas: fabric.Canvas, width: number, height: number, scale: number) => {
+    // เส้นแนวนอน
     for (let i = 0; i <= 12; i++) {
-      const { y } = gridToCanvas(0, i);
-      canvas.add(new fabric.Line([0, y, CANVAS_WIDTH, y], { 
+      const { y } = gridToCanvas(0, i, width, height, scale);
+      canvas.add(new fabric.Line([0, y, width, y], { 
         stroke: i % 4 === 0 ? '#334155' : '#1e293b', 
         selectable: false, evented: false 
       }));
@@ -117,15 +136,16 @@ const MarchingCanvas: React.FC = () => {
         }));
       }
     }
+    // เส้นแนวตั้ง
     for (let i = -12; i <= 12; i++) {
-      const { x } = gridToCanvas(i, 0);
-      canvas.add(new fabric.Line([x, 0, x, CANVAS_HEIGHT], { 
+      const { x } = gridToCanvas(i, 0, width, height, scale);
+      canvas.add(new fabric.Line([x, 0, x, height], { 
         stroke: i === 0 ? '#475569' : '#1e293b', 
         selectable: false, evented: false 
       }));
       const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
       canvas.add(new fabric.Textbox(label, { 
-        left: x + 4, top: CANVAS_HEIGHT - 20, fontSize: 12, fill: '#64748b', selectable: false, evented: false 
+        left: x + 4, top: height - 20, fontSize: 12, fill: '#64748b', selectable: false, evented: false 
       }));
     }
   };
@@ -143,9 +163,9 @@ const MarchingCanvas: React.FC = () => {
 
     performers.forEach((performer) => {
       const pos = currentSet.positions[performer.id] || { x: 0, y: 0 };
-      const { x, y } = gridToCanvas(pos.x, pos.y);
+      // 🛠️ ส่งค่า config ไปยังฟังก์ชันคำนวณตอนแสดงผลจุดนักแสดง
+      const { x, y } = gridToCanvas(pos.x, pos.y, canvasConfig.width, canvasConfig.height, canvasConfig.scale);
       
-      // 🛠️ เช็กสถานะว่าถูกเลือกอยู่หรือไม่เพื่อปรับสีขอบจุดบนสนาม
       const isSelected = selectedPerformerId === performer.id;
 
       const circle = new fabric.Circle({ 
@@ -153,7 +173,6 @@ const MarchingCanvas: React.FC = () => {
         fill: performer.color, 
         originX: 'center', 
         originY: 'center', 
-        // สีนีออนฟ้าเมื่อถูกเลือก / สีขาวเมื่อปกติ
         stroke: isSelected ? '#22d3ee' : '#ffffff', 
         strokeWidth: isSelected ? 3 : 1.5 
       });
@@ -168,25 +187,23 @@ const MarchingCanvas: React.FC = () => {
         originX: 'center', 
         originY: 'center', 
         hasControls: false, 
-        hasBorders: isSelected, // แสดงกล่องเส้นประครอบเฉพาะตอนเลือก
+        hasBorders: isSelected, 
         borderColor: '#22d3ee',
         hoverCursor: 'grab', 
         moveCursor: 'grabbing'
       });
       
-      // ผูกไอดีไว้ที่ตัว Group ของนักแสดงคนนั้นๆ
-      (group as any).id = performer.id;
+      group.id = performer.id;
       performersGroups.current.set(performer.id, group);
       canvas.add(group);
 
-      // 🛠️ หากคนนี้ถูกเลือกจากฝั่งซ้าย ให้ Fabric.js ทำการครอบสัญลักษณ์การเลือก (Active Object) บนจอทันที
       if (isSelected) {
         canvas.setActiveObject(group);
       }
     });
 
     canvas.renderAll();
-  }, [performers, currentSetIndex, sets, isPlaying, selectedPerformerId]); // เฝ้าดูสเตตการเลือกคน
+  }, [performers, currentSetIndex, sets, isPlaying, selectedPerformerId, canvasConfig]); // เพิ่ม canvasConfig เป็น Dependency
 
   // 3. Playback Mode: LERP Animation
   useEffect(() => {
@@ -209,9 +226,8 @@ const MarchingCanvas: React.FC = () => {
       }
     }
 
-    // 🛠️ แอนิเมชันคำนวณเซ็ตเป้าหมาย (setB) ให้ถูกต้องตามช่วงวินาทีจริง ไม่พุ่งทะลุไปเซ็ตสุดท้าย
     const setA = idx > 0 ? sets[idx - 1] : sets[0];
-    const setB = sets[idx] || sets[sets.length - 1]; // 👈 แก้ไขจากเดิมที่เป็น sets[sets.length - 1]
+    const setB = sets[idx] || sets[sets.length - 1];
 
     const startTime = idx > 0 ? cumulative[idx - 1] : 0;
     const endTime = cumulative[idx] || startTime;
@@ -231,17 +247,25 @@ const MarchingCanvas: React.FC = () => {
       const interpX = posA.x + (posB.x - posA.x) * t;
       const interpY = posA.y + (posB.y - posA.y) * t;
       
-      const { x, y } = gridToCanvas(interpX, interpY);
+      // 🛠️ ส่งค่า config ไปใช้ในสูตรคำนวณการเคลื่อนไหวขณะเล่นแอนิเมชัน
+      const { x, y } = gridToCanvas(interpX, interpY, canvasConfig.width, canvasConfig.height, canvasConfig.scale);
       group.set({ left: x, top: y });
       group.setCoords();
     });
 
     canvas.renderAll();
-  }, [currentTime, isPlaying, sets]);
+  }, [currentTime, isPlaying, sets, canvasConfig]); // เพิ่ม canvasConfig เป็น Dependency
 
+  // 🛠️ 3. ครอบสไตล์กรอบภายนอกเพื่อล็อกสัดส่วน และเพิ่มกรอบสีม่วง/เทาตามสถานะ Playback เดิม
   return (
-    <div className={`relative shadow-2xl rounded-xl overflow-hidden bg-[#0f172a] border border-slate-700 ring-4 transition-all ${isPlaying ? 'ring-purple-500 shadow-purple-900/30' : 'ring-slate-900/50'}`}>
-      <canvas ref={canvasRef} />
+    <div 
+      className={`w-full h-[calc(100vh-280px)] overflow-auto border border-slate-700 rounded-xl bg-[#0f172a] shadow-inner p-4 custom-scrollbar ring-4 transition-all ${
+        isPlaying ? 'ring-purple-500 shadow-purple-900/30' : 'ring-slate-900/50'
+      }`}
+    >
+      <div className="mx-auto" style={{ width: canvasConfig.width, height: canvasConfig.height }}>
+        <canvas ref={canvasRef} />
+      </div>
     </div>
   );
 };
