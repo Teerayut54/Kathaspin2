@@ -34,6 +34,14 @@ export interface CanvasConfig {
   scale: number;
 }
 
+export interface Cone {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
 interface ProjectState {
   data: ProjectData;
   currentSetIndex: number; // ใช้ระบุเซ็ตที่เลือก/แสดงอยู่ปัจจุบัน
@@ -63,6 +71,12 @@ interface ProjectState {
 
   setSelectedPerformerId: (id: string | null) => void;
   updateCanvasSize: (width: number, height: number) => void; // ฟังก์ชันปรับขนาดสนาม
+
+  cones: Cone[]; // เก็บรายการกรวยทั้งหมดในสนาม
+  addCone: (cone: Cone) => void;
+  removeCone: (id: string) => void;
+  updateConePosition: (id: string, x: number, y: number) => void;
+  generateConeByCoords: (x: number, y: number, name?: string) => void; // 🛠️ ฟังก์ชันกรอกเลขแล้วสร้างกรวย
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -231,4 +245,38 @@ export const useProjectStore = create<ProjectState>((set) => ({
       scale: state.canvasConfig.scale 
     }
   })),
+
+  // ==========================================
+  // 🟢 3. Actions สำหรับจัดการกรวย (Cones) ที่เพิ่มเข้ามา
+  // ==========================================
+  
+  cones: [
+    // ใส่ค่าเริ่มต้นจำลองไว้ทดสอบ
+    { id: 'cone-1', name: 'L12', x: -12, y: 8, color: '#ff6b1a' },
+    { id: 'cone-2', name: 'R12', x: 12, y: 8, color: '#ff6b1a' }
+  ],
+
+  addCone: (cone) => set((state) => ({ cones: [...state.cones, cone] })),
+
+  removeCone: (id) => set((state) => ({
+    cones: state.cones.filter(c => c.id !== id)
+  })),
+
+  // ฟังก์ชันนี้จะถูกเรียกใช้ ทั้งตอนที่ "กรอกตัวเลขเปลี่ยนในแผงควบคุม" และตอน "ใช้เมาส์ลากกรวยบนจอ"
+  updateConePosition: (id, x, y) => set((state) => ({
+    cones: state.cones.map(c => c.id === id ? { ...c, x, y } : c)
+  })),
+
+  // 🛠️ แอ็กชันพิเศษ: รับพิกัดตัวเลขไปสร้างเป็นกรวยชิ้นใหม่ทันที
+  generateConeByCoords: (x, y, name) => set((state) => {
+    const nextNum = state.cones.length + 1;
+    const newCone: Cone = {
+      id: `cone-${Date.now()}`, // ใช้ timestamp ป้องกัน ID ซ้ำ
+      name: name || `กรวย ${nextNum}`,
+      x: x,
+      y: y,
+      color: '#ff6b1a' // สีส้มเด่นชัดสไตล์กรวยสนามซ้อม
+    };
+    return { cones: [...state.cones, newCone] };
+  }),
 }));
