@@ -29,8 +29,8 @@ export interface ProjectData {
 }
 
 export interface CanvasConfig {
-  gridMaxX: number; // จำนวนบล็อกตารางฝั่งขวา (เช่น 16)
-  gridMaxY: number; // จำนวนบล็อกตารางแนวลึก (เช่น 16)
+  gridMaxX: number; // จำนวนบล็อกตารางฝั่งขวา (เช่น 12)
+  gridMaxY: number; // จำนวนบล็อกตารางแนวลึก (เช่น 12)
 }
 
 export interface Cone {
@@ -48,35 +48,27 @@ interface ProjectState {
   isPlaying: boolean;
   selectedPerformerId: string | null;
   canvasConfig: CanvasConfig; 
-  
-  // 🟢 เพิ่ม State สำหรับ Zoom
   zoomRatio: number;
   setZoomRatio: (zoom: number) => void;
 
-  // ปรับขนาดสนามโดยระบุจำนวนบล็อกตารางในแกน X และ Y
+  // 🛠️ คอนเซปต์ใหม่: ปรับขนาดสนามปุ๊บ ระบบจะสร้างกรวยโซนรอบสนามให้อัตโนมัติทันที
   updateGridDimensions: (maxX: number, maxY: number) => void;
 
   setData: (data: ProjectData) => void;
   updateMetadata: (meta: Partial<Metadata>) => void;
-
   addPerformer: (performer: Performer) => void;
   updatePerformer: (id: string, updates: Partial<Performer>) => void;
   removePerformer: (id: string) => void;
-
   addSet: (set: SetData) => void;
   updateSetPositions: (setIndex: number, performerId: string, x: number, y: number) => void;
   updateSetTitle: (setIndex: number, title: string) => void; 
   updateSetDuration: (setIndex: number, newDuration: number) => void; 
-
   setCurrentSetIndex: (index: number) => void;
   setCurrentTime: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
-
   copySet: (setIndex: number) => void;
   removeSet: (setIndex: number) => void;
-
   setSelectedPerformerId: (id: string | null) => void;
-  // pixel-based canvas sizing removed; use responsive container + grid dimensions
 
   cones: Cone[]; 
   addCone: (cone: Cone) => void;
@@ -118,21 +110,41 @@ export const useProjectStore = create<ProjectState>((set) => ({
   isPlaying: false,
   selectedPerformerId: null,
   
+  // ค่าเริ่มต้นตั้งไว้ที่ 12 * 12 ตามที่ต้องการ
   canvasConfig: {
-    gridMaxX: 16,
-    gridMaxY: 16,
+    gridMaxX: 12,
+    gridMaxY: 12,
   },
 
-  // 🟢 ค่าเริ่มต้นและ Logic ของ Zoom
   zoomRatio: 1,
   setZoomRatio: (zoom) => set({ zoomRatio: Math.max(0.2, Math.min(4, zoom)) }),
 
-  updateGridDimensions: (maxX, maxY) => set(() => ({
-    canvasConfig: {
-      gridMaxX: Math.max(4, Math.floor(maxX)),
-      gridMaxY: Math.max(4, Math.floor(maxY))
-    }
-  })),
+  // 🛠️ แก้ไขลอจิกชิ้นสำคัญ: เมื่อเปลี่ยนขนาดตาราง ระบบจะคำนวณและปักกรวยโซนให้ใหม่อัตโนมัติ
+  updateGridDimensions: (maxX, maxY) => set(() => {
+    const validatedMaxX = Math.max(4, Math.floor(maxX));
+    const validatedMaxY = Math.max(4, Math.floor(maxY));
+
+    // คำนวณจุดปักกรวยมาตรฐานอัตโนมัติ (อิงพิกัด 0 เป็นจุดกึ่งกลาง)
+    const autoCones: Cone[] = [
+      // 🔽 โซนขอบสนามด้านล่าง (Y = 0)
+      { id: 'auto-cone-bl', name: `L${validatedMaxX}`, x: -validatedMaxX, y: 0, color: '#ff6b1a' },
+      { id: 'auto-cone-bc', name: '0 (Front)', x: 0, y: 0, color: '#0ea5e9' }, // จุดศูนย์ตรงหน้าสแตนด์
+      { id: 'auto-cone-br', name: `R${validatedMaxX}`, x: validatedMaxX, y: 0, color: '#ff6b1a' },
+
+      // 🔼 โซนขอบสนามด้านบน/แนวลึกสุด (Y = maxY)
+      { id: 'auto-cone-tl', name: `L${validatedMaxX}`, x: -validatedMaxX, y: validatedMaxY, color: '#ff6b1a' },
+      { id: 'auto-cone-tc', name: '0 (Back)', x: 0, y: validatedMaxY, color: '#0ea5e9' },
+      { id: 'auto-cone-tr', name: `R${validatedMaxX}`, x: validatedMaxX, y: validatedMaxY, color: '#ff6b1a' }
+    ];
+
+    return {
+      canvasConfig: {
+        gridMaxX: validatedMaxX,
+        gridMaxY: validatedMaxY
+      },
+      cones: autoCones // อัปเดตรายชื่อกรวยทั้งหมดในระบบให้ทันทีอัตโนมัติ
+    };
+  }),
 
   setData: (data) => set({ data }),
 
@@ -249,23 +261,19 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setSelectedPerformerId: (id) => set({ selectedPerformerId: id }),
 
-  // removed: pixel-based updateCanvasSize — canvas pixel sizing handled in component
-
+  // 🛠️ ค่ากรวยเริ่มต้นปักไว้ที่ L12 และ R12 ล้อตามขนาดตารางแกน X: 12
   cones: [
-    { id: 'cone-1', name: 'L12', x: -12, y: 8, color: '#ff6b1a' },
-    { id: 'cone-2', name: 'R12', x: 12, y: 8, color: '#ff6b1a' }
+    { id: 'auto-cone-bl', name: 'L12', x: -12, y: 0, color: '#ff6b1a' },
+    { id: 'auto-cone-bc', name: '0 (Front)', x: 0, y: 0, color: '#0ea5e9' },
+    { id: 'auto-cone-br', name: 'R12', x: 12, y: 0, color: '#ff6b1a' },
+    { id: 'auto-cone-tl', name: 'L12', x: -12, y: 12, color: '#ff6b1a' },
+    { id: 'auto-cone-tc', name: '0 (Back)', x: 0, y: 12, color: '#0ea5e9' },
+    { id: 'auto-cone-tr', name: 'R12', x: 12, y: 12, color: '#ff6b1a' }
   ],
 
   addCone: (cone) => set((state) => ({ cones: [...state.cones, cone] })),
-
-  removeCone: (id) => set((state) => ({
-    cones: state.cones.filter(c => c.id !== id)
-  })),
-
-  updateConePosition: (id, x, y) => set((state) => ({
-    cones: state.cones.map(c => c.id === id ? { ...c, x, y } : c)
-  })),
-
+  removeCone: (id) => set((state) => ({ cones: state.cones.filter(c => c.id !== id) })),
+  updateConePosition: (id, x, y) => set((state) => ({ cones: state.cones.map(c => c.id === id ? { ...c, x, y } : c) })),
   generateConeByCoords: (x, y, name) => set((state) => {
     const nextNum = state.cones.length + 1;
     const newCone: Cone = {
