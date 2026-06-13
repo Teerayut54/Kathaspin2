@@ -7,10 +7,7 @@ const MarchingCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvas = useRef<fabric.Canvas | null>(null);
   const performersGroups = useRef<Map<string, fabric.Group>>(new Map());
-  const conesGroups = useRef<Map<string, fabric.Group>>(new Map());
 
-  // 🛠️ ล็อคมิติมิติพิกเซลการวาดสนามให้คงที่ (สี่เหลี่ยมผืนผ้า 2:1 อัตราส่วนมาตรฐานสนามซ้อม)
-  // วิธีนี้จะทำให้พิกัด เส้นตาราง และตัวหนังสือบอกตำแหน่งนิ่ง 100% ไม่มีวันเบลอหรือซ้อนทับกัน
   const CANVAS_WIDTH = 900;
   const CANVAS_HEIGHT = 450;
   
@@ -25,9 +22,11 @@ const MarchingCanvas: React.FC = () => {
   const setSelectedPerformerId = useProjectStore(state => state.setSelectedPerformerId);
 
   const canvasConfig = useProjectStore(state => state.canvasConfig);
-  const cones = useProjectStore(state => state.cones) || [];
 
-  // วาดกระดานและจัดการ Event ตารางกริด
+  // 🛠️ State สลับมุมมอง
+  const viewMode = useProjectStore(state => state.viewMode);
+  const setViewMode = useProjectStore(state => state.setViewMode);
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -38,14 +37,13 @@ const MarchingCanvas: React.FC = () => {
     });
     fabricCanvas.current = canvas;
 
-    // วาดตารางกริดพื้นหลังตามขนาดแกน X, Y ที่ตั้งค่าจาก Store
+    canvas.clear();
     drawGrid(canvas, CANVAS_WIDTH, CANVAS_HEIGHT, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
 
-    // ดักจับจังหวะที่ผู้ใช้งานกำลังลากตัวนักแสดง (ช่วยดูดติดเส้นตารางกึ่งกลางบล็อก 0.5 ก้าวอัตโนมัติ)
     canvas.on('object:moving', (e) => {
       if (useProjectStore.getState().isPlaying) return;
       const target = e.target as any;
-      if (!target || target.isCone) return; // ล็อคไม่ให้ไปยุ่งกับกรวยอัตโนมัติ
+      if (!target || target.isCone) return;
 
       const { gridX, gridY } = canvasToGrid(
         target.left || 0, target.top || 0,
@@ -59,7 +57,6 @@ const MarchingCanvas: React.FC = () => {
       target.set({ left: x, top: y });
     });
 
-    // อัปเดตพิกัดลงในใจระบบ (Store) เมื่อปล่อยมือจากการลาก
     canvas.on('object:modified', (e) => {
       if (useProjectStore.getState().isPlaying) return;
       const target = e.target as any;
@@ -91,11 +88,9 @@ const MarchingCanvas: React.FC = () => {
     return () => {
       canvas.dispose();
       performersGroups.current.clear();
-      conesGroups.current.clear();
     };
   }, [canvasConfig.gridMaxX, canvasConfig.gridMaxY, setSelectedPerformerId]);
 
-  // ฟังก์ชันอัปเดตตำแหน่งเฉพาะของตัวนักแสดง
   const updatePosition = (obj: any) => {
     const { gridX, gridY } = canvasToGrid(obj.left || 0, obj.top || 0, CANVAS_WIDTH, CANVAS_HEIGHT, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
     const finalGridX = snapToInterval(gridX, 0.5);
@@ -110,11 +105,10 @@ const MarchingCanvas: React.FC = () => {
     );
   };
 
-  // 🛠️ ปรับปรุงฟังก์ชันวาดกริดให้อ่านง่าย มีการปูพื้นหลังหลบเส้นตารางพาดตัดขอบชัดเจน
   const drawGrid = (canvas: fabric.Canvas, width: number, height: number, maxX: number, maxY: number) => {
     const fontSize = 10;
+    const coneSize = 12;
 
-    // วาดเส้นตารางแนวลึก (Horizontal lines - แกน Y)
     for (let i = 0; i <= maxY; i++) {
       const { y } = gridToCanvas(0, i, width, height, maxX, maxY);
       canvas.add(new fabric.Line([0, y, width, y], {
@@ -122,95 +116,61 @@ const MarchingCanvas: React.FC = () => {
         strokeWidth: i % 4 === 0 ? 1.5 : 1,
         selectable: false, evented: false
       }));
-      if (i > 0) {
-        canvas.add(new fabric.Textbox(i.toString(), {
-          left: 8, top: y - (fontSize / 2 + 2), fontSize: fontSize, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
-        }));
+
+      if (i % 4 === 0) {
+        [-maxX, maxX].forEach((xPos) => {
+          const { x } = gridToCanvas(xPos, i, width, height, maxX, maxY);
+          const sideCone = new fabric.Polygon([
+            { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
+          ], {
+            left: x + (xPos > 0 ? 10 : -10), top: y, fill: '#ff6b1a', stroke: '#fff', strokeWidth: 0.8, originX: 'center', originY: 'center', selectable: false, evented: false
+          });
+          const sideLabel = new fabric.Textbox(`Y:${i}`, {
+            left: x + (xPos > 0 ? 24 : -48), top: y - 5, fontSize: fontSize, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
+          });
+          canvas.add(sideCone, sideLabel);
+        });
       }
     }
 
-    // วาดเส้นตารางแนวตั้ง (Vertical lines - แกน X)
     for (let i = -maxX; i <= maxX; i++) {
       const { x, y: bottomY } = gridToCanvas(i, 0, width, height, maxX, maxY);
+      const { y: topY } = gridToCanvas(i, maxY, width, height, maxX, maxY);
+      
       canvas.add(new fabric.Line([x, 0, x, height], {
         stroke: i === 0 ? '#475569' : (i % 4 === 0 ? '#334155' : '#1e293b'),
         strokeWidth: i === 0 || i % 4 === 0 ? 1.5 : 1,
         selectable: false, evented: false
       }));
       
-      const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
-      
-      // ผลักพิกัด L / 0 / R ลงใต้เส้นขอบสนาม และปูพื้นหลังทึบตัดขอบเพื่อให้อ่านง่ายขึ้นทันที
-      canvas.add(new fabric.Textbox(label, {
-        left: x - 20,
-        top: bottomY + 6,
-        width: 40,
-        fontSize: fontSize,
-        fill: i === 0 ? '#38bdf8' : '#64748b',
-        fontFamily: 'monospace',
-        fontWeight: i === 0 ? 'bold' : 'normal',
-        textAlign: 'center',
-        backgroundColor: '#0f172a',
-        selectable: false,
-        evented: false
-      }));
+      if (i % 4 === 0) {
+        const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
+        const isCenter = i === 0;
+
+        [bottomY + 8, topY - 12].forEach((yPos, index) => {
+          const markerCone = new fabric.Polygon([
+            { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
+          ], {
+            left: x, top: yPos, fill: isCenter ? '#0ea5e9' : '#ff6b1a', stroke: '#fff', strokeWidth: 0.8, originX: 'center', originY: 'center', selectable: false, evented: false
+          });
+          
+          const markerLabel = new fabric.Textbox(label, {
+            left: x, 
+            top: yPos + (index === 0 ? 8 : -16), 
+            fontSize: fontSize, 
+            fill: isCenter ? '#38bdf8' : '#64748b', 
+            fontFamily: 'monospace', 
+            textAlign: 'center',
+            originX: 'center',
+            selectable: false, 
+            evented: false
+          });
+          canvas.add(markerCone, markerLabel);
+        });
+      }
     }
   };
 
-  // 🛠️ คอนเซปต์ล้ำๆ: เรนเดอร์กรวยอัตโนมัติล็อกตำแหน่งไว้เป็น "วัตถุฉากหลัง" ประจำพิกัดสนาม (ห้ามลากเล่น)
-  useEffect(() => {
-    const canvas = fabricCanvas.current;
-    if (!canvas || isPlaying) return;
-
-    conesGroups.current.forEach(group => canvas.remove(group));
-    conesGroups.current.clear();
-
-    const size = 14; // ขนาดกรวยนิ่งชัดเจนดูง่าย
-
-    cones.forEach((cone) => {
-      const { x, y } = gridToCanvas(cone.x, cone.y, CANVAS_WIDTH, CANVAS_HEIGHT, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
-
-      // วาดรูปทรงกรวยสี่เหลี่ยมคางหมูหรือสามเหลี่ยมจำลองสนามจริง
-      const coneShape = new fabric.Polygon([
-        { x: 0, y: -size/2 },
-        { x: -size/2, y: size/2 },
-        { x: size/2, y: size/2 }
-      ], {
-        fill: cone.color || '#ff6b1a',
-        stroke: '#fff',
-        strokeWidth: 1,
-        originX: 'center',
-        originY: 'center'
-      });
-
-      const label = new fabric.Textbox(cone.name, {
-        fontSize: 8,
-        fontFamily: 'monospace',
-        fontWeight: 'bold',
-        fill: '#ffffff',
-        backgroundColor: '#1e293b',
-        originX: 'center',
-        originY: 'top',
-        top: size/2 + 2,
-        textAlign: 'center'
-      });
-
-      // ตั้งค่า selectable: false และ evented: false เพื่อไม่ให้เผลอไปกดโดนหรือลากกรวยหลุดตำแหน่ง
-      const coneGroup = new fabric.Group([coneShape, label], {
-        left: x, top: y, originX: 'center', originY: 'center', selectable: false, evented: false
-      });
-
-      (coneGroup as any).id = cone.id;
-      (coneGroup as any).isCone = true;
-
-      conesGroups.current.set(cone.id, coneGroup);
-      canvas.add(coneGroup);
-    });
-
-    canvas.renderAll();
-  }, [cones, isPlaying, canvasConfig]);
-
-  // เรนเดอร์ตัวละครนักแสดงสมาชิกในวง (Performers)
   useEffect(() => {
     const canvas = fabricCanvas.current;
     if (!canvas || isPlaying) return;
@@ -221,7 +181,7 @@ const MarchingCanvas: React.FC = () => {
     performersGroups.current.forEach(group => canvas.remove(group));
     performersGroups.current.clear();
 
-    const radius = 12; // ขนาดของวงกลมคนซ้อมเด่นชัด สังเกตง่าย
+    const radius = 12;
 
     performers.forEach((performer) => {
       const pos = currentSet.positions[performer.id] || { x: 0, y: 0 };
@@ -254,7 +214,6 @@ const MarchingCanvas: React.FC = () => {
     canvas.renderAll();
   }, [performers, currentSetIndex, sets, isPlaying, selectedPerformerId, canvasConfig]);
 
-  // ระบบเล่น Animation สมูทตามเส้นเวลา (LERP)
   useEffect(() => {
     const canvas = fabricCanvas.current;
     if (!canvas || !isPlaying || sets.length === 0) return;
@@ -301,14 +260,55 @@ const MarchingCanvas: React.FC = () => {
   }, [currentTime, isPlaying, sets, canvasConfig]);
 
   return (
-    // 🛠️ คลุมสไตล์ข้างนอกด้วย Tailwind ให้ยืดเต็มหน้าจอได้อย่างสมดุล 
-    // ตัวเฟรมภายในจะครอบกระดานสัดส่วนสี่เหลี่ยมผืนผ้าคงที่ไว้ ทำให้ไม่ว่าหน้าจอคอมฯ ผู้ใช้งานจะกว้างหรือแคบแค่ไหน อัตราส่วนพิกัดก็จะไม่เบี้ยว บิด หรือพังอีกต่อไปครับ
-    <div className="w-full h-full bg-[#0f172a] flex items-center justify-center p-4 overflow-hidden">
-      <div className="w-full max-w-5xl aspect-[2/1] bg-[#0b0f19] border border-slate-800 rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden">
-        <div style={{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }} className="scale-[0.9] sm:scale-[0.95] md:scale-100 origin-center transition-transform">
+    // 🏟️ ใช้โครงสร้าง Layout ดั้งเดิมของคุณเป๊ะๆ เพื่อให้สัดส่วน 3D กลับมาสวยเหมือนเดิม
+    <div className="relative w-full h-full bg-[#0f172a] flex items-center justify-center p-4 overflow-hidden [perspective:1000px]">
+      
+      {/* 🌟 ปุ่มสลับมุมมอง (ฝังลอยไว้มุมขวาบนของหน้าจอหลัก ไม่กวน Layout สนาม) */}
+      <div className="absolute top-6 right-6 z-50">
+        <button
+          type="button"
+          onClick={() => setViewMode(viewMode === '2D' ? '3D' : '2D')}
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-lg ${
+            viewMode === '3D'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border-purple-500/30'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+          }`}
+        >
+          {viewMode === '3D' ? (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-5.25v9" /></svg>
+              มุมมอง 3D บนสแตนด์
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v16.5h16.5V3.75H3.75zm16.5 4.5H3.75m16.5 4.5H3.75m16.5 4.5H3.75" /></svg>
+              มุมมอง 2D แผนผัง
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* 🛠️ ส่วนแผ่นสนาม: สลับสไตล์บิดมุมมองตามสไตล์ที่คุณต้องการ ไม่ยืด ไม่เบี้ยว */}
+      <div 
+        className="w-full max-w-5xl aspect-[2/1] bg-[#0b0f19] border border-slate-800 rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-500"
+        style={
+          viewMode === '3D' 
+            ? {
+                transform: 'rotateX(35deg) scale(0.9) translateY(-20px)',
+                transformStyle: 'preserve-3d',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+              }
+            : {
+                transform: 'rotateX(0deg) scale(1) translateY(0px)',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }
+        }
+      >
+        <div style={{ width: `${CANVAS_WIDTH}px`, height: `${CANVAS_HEIGHT}px` }} className="origin-center">
           <canvas ref={canvasRef} />
         </div>
       </div>
+
     </div>
   );
 };

@@ -50,9 +50,11 @@ interface ProjectState {
   canvasConfig: CanvasConfig; 
   zoomRatio: number;
   setZoomRatio: (zoom: number) => void;
-
   // 🛠️ คอนเซปต์ใหม่: ปรับขนาดสนามปุ๊บ ระบบจะสร้างกรวยโซนรอบสนามให้อัตโนมัติทันที
   updateGridDimensions: (maxX: number, maxY: number) => void;
+
+  viewMode: '2D' | '3D';
+  setViewMode: (mode: '2D' | '3D') => void;
 
   setData: (data: ProjectData) => void;
   updateMetadata: (meta: Partial<Metadata>) => void;
@@ -74,7 +76,8 @@ interface ProjectState {
   addCone: (cone: Cone) => void;
   removeCone: (id: string) => void;
   updateConePosition: (id: string, x: number, y: number) => void;
-  generateConeByCoords: (x: number, y: number, name?: string) => void; 
+  generateConeByCoords: (x: number, y: number, name?: string) => void;
+  
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -145,6 +148,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
       cones: autoCones // อัปเดตรายชื่อกรวยทั้งหมดในระบบให้ทันทีอัตโนมัติ
     };
   }),
+
+  viewMode: '2D',
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   setData: (data) => set({ data }),
 
