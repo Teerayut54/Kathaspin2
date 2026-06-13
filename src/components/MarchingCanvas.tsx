@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { gridToCanvas, canvasToGrid, snapToInterval } from '../core/gridMath';
+import { gridToCanvas, canvasToGrid, snapToInterval, getDynamicScale } from '../core/gridMath';
 import { useProjectStore } from '../store/projectStore';
 
 const MarchingCanvas: React.FC = () => {
@@ -8,7 +8,7 @@ const MarchingCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvas = useRef<fabric.Canvas | null>(null);
   const performersGroups = useRef<Map<string, fabric.Group>>(new Map());
-  const conesGroups = useRef<Map<string, fabric.Group>>(new Map()); // 🛠️ เก็บ Object กรวยจำลองแยกเลเยอร์
+  const conesGroups = useRef<Map<string, fabric.Group>>(new Map());
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
   
   const currentSetIndex = useProjectStore(state => state.currentSetIndex);
@@ -22,25 +22,26 @@ const MarchingCanvas: React.FC = () => {
   const setSelectedPerformerId = useProjectStore(state => state.setSelectedPerformerId);
 
   const canvasConfig = useProjectStore(state => state.canvasConfig);
-
-  // 🛠️ ดึงชุดข้อมูลสเตตกรวยสนามมาจาก Store เพิ่มเติม
   const cones = useProjectStore(state => state.cones) || [];
   const updateConePosition = useProjectStore(state => state.updateConePosition);
 
-  // Responsive container observer — update pixel dimensions
+  // ตรวจจับขนาดกล่องครอบนอกสุด เพื่อให้ได้ค่าขนาดพิกเซลจริงของหน้าจอฝั่งขวา
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        setDimensions({ width: Math.max(200, width - 16), height: Math.max(150, height - 16) });
+        // ปรับขนาดพิกเซล Canvas จริงให้เต็มพื้นที่กล่อง โดยมีขนาดขั้นต่ำรองรับจอเล็ก
+        if (width > 0 && height > 0) {
+          setDimensions({ width: Math.max(200, width), height: Math.max(150, height) });
+        }
       }
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, []);
 
-  // Initialize Canvas and Draw Grid when pixel dimensions or grid config change
+  // วาดและเคลียร์กระดาน Canvas เมื่อมิติหน้าจอ หรือจำนวนบล็อกตารางมีการเปลี่ยนแปลง
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -51,36 +52,25 @@ const MarchingCanvas: React.FC = () => {
     });
     fabricCanvas.current = canvas;
 
-    // วาดตารางตามจำนวนบล็อกใน Store และขนาดพิกเซลปัจจุบัน
     drawGrid(canvas, dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
 
-    // Live snap while dragging
     canvas.on('object:moving', (e) => {
       if (useProjectStore.getState().isPlaying) return;
       const target = e.target as any;
       if (!target) return;
 
       const { gridX, gridY } = canvasToGrid(
-        target.left || 0,
-        target.top || 0,
-        dimensions.width,
-        dimensions.height,
-        canvasConfig.gridMaxX,
-        canvasConfig.gridMaxY
+        target.left || 0, target.top || 0,
+        dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY
       );
 
       const { x, y } = gridToCanvas(
-        snapToInterval(gridX, 0.5),
-        snapToInterval(gridY, 0.5),
-        dimensions.width,
-        dimensions.height,
-        canvasConfig.gridMaxX,
-        canvasConfig.gridMaxY
+        snapToInterval(gridX, 0.5), snapToInterval(gridY, 0.5),
+        dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY
       );
       target.set({ left: x, top: y });
     });
 
-    // Save when modified
     canvas.on('object:modified', (e) => {
       if (useProjectStore.getState().isPlaying) return;
       const target = e.target as any;
@@ -119,7 +109,6 @@ const MarchingCanvas: React.FC = () => {
     };
   }, [dimensions, canvasConfig.gridMaxX, canvasConfig.gridMaxY, setSelectedPerformerId]);
 
-  // ฟังก์ชันอัปเดตตำแหน่งนักแสดง
   const updatePosition = (obj: any) => {
     const { gridX, gridY } = canvasToGrid(obj.left || 0, obj.top || 0, dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
     const finalGridX = snapToInterval(gridX, 0.5);
@@ -134,7 +123,6 @@ const MarchingCanvas: React.FC = () => {
     );
   };
 
-  // 🛠️ ฟังก์ชันเพิ่มเติม: อัปเดตพิกัดตำแหน่งกรวยสนามหลังจากการคลิกลากวางบน Canvas
   const updateConeGridPosition = (obj: any) => {
     const { gridX, gridY } = canvasToGrid(obj.left || 0, obj.top || 0, dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
     const finalGridX = snapToInterval(gridX, 0.5);
@@ -149,11 +137,13 @@ const MarchingCanvas: React.FC = () => {
     }
   };
 
-  // 🛠️ ปรับฟังก์ชันวาดตารางให้คำนวณจำนวนขอบโซนแบบไดนามิก (ขยายจาก 12 สู่ 16 หรือมากกว่าได้ทันที)
   const drawGrid = (canvas: fabric.Canvas, width: number, height: number, maxX: number, maxY: number) => {
+    const scale = getDynamicScale(width, height, maxX, maxY);
+    const fontSize = Math.max(8, Math.min(11, scale * 0.38)); // ปรับขนาดตัวอักษรบอกพิกเซลกราฟตามสเกลสนาม
+
     // Horizontal lines (Y)
     for (let i = 0; i <= maxY; i++) {
-      const { x: _, y } = gridToCanvas(0, i, width, height, maxX, maxY);
+      const { y } = gridToCanvas(0, i, width, height, maxX, maxY);
       canvas.add(new fabric.Line([0, y, width, y], {
         stroke: i % 4 === 0 ? '#334155' : '#1e293b',
         strokeWidth: i % 4 === 0 ? 1.5 : 1,
@@ -161,7 +151,7 @@ const MarchingCanvas: React.FC = () => {
       }));
       if (i > 0) {
         canvas.add(new fabric.Textbox(i.toString(), {
-          left: 8, top: y - 16, fontSize: 10, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
+          left: 10, top: y - (fontSize + 2), fontSize: fontSize, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
         }));
       }
     }
@@ -175,76 +165,77 @@ const MarchingCanvas: React.FC = () => {
         selectable: false, evented: false
       }));
       const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
+      
+      const bottomY = gridToCanvas(0, 0, width, height, maxX, maxY).y;
       canvas.add(new fabric.Textbox(label, {
-        left: x + 4, top: height - 18, fontSize: 10, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
+        left: x - 20,
+        top: bottomY + 6,
+        width: 40,
+        fontSize: fontSize,
+        fill: i === 0 ? '#38bdf8' : '#64748b',
+        fontFamily: 'monospace',
+        fontWeight: i === 0 ? 'bold' : 'normal',
+        textAlign: 'center',
+        backgroundColor: '#0f172a',
+        selectable: false,
+        evented: false
       }));
     }
   };
 
-  // 🛠️ Effect พิเศษเพิ่มเติม: การเรนเดอร์และจัดการวัตถุกรวย (Cones Render Layer)
+  // Render Cones
   useEffect(() => {
     const canvas = fabricCanvas.current;
     if (!canvas || isPlaying) return;
 
-    // เคลียร์กรวยเซ็ตเดิมออกก่อนโหลดชุดข้อมูลตำแหน่งใหม่คัดสรร
     conesGroups.current.forEach(group => canvas.remove(group));
     conesGroups.current.clear();
+
+    const scale = getDynamicScale(dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
+    const size = Math.max(10, scale * 0.4); // ขนาดกรวยแปรผันตามอัตราซูมหน้าจอ
 
     cones.forEach((cone) => {
       const { x, y } = gridToCanvas(cone.x, cone.y, dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
 
-      // สร้างหน้าตารูปทรงกรวยฝึกซ้อม (ใช้ SVG Path หรือวาดรูปทรง Polygon สามเหลี่ยมขึ้นด้านบน)
       const coneShape = new fabric.Polygon([
-        { x: 0, y: -8 },  // ยอดแหลมกรวยสนาม
-        { x: -7, y: 6 },  // ฐานซ้ายกรวย
-        { x: 7, y: 6 }    // ฐานขวากรวย
+        { x: 0, y: -size/2 },
+        { x: -size/2, y: size/2 },
+        { x: size/2, y: size/2 }
       ], {
-        fill: cone.color || '#f59e0b', // สีส้มสะท้อนแสงเด่นชัด
+        fill: cone.color || '#f59e0b',
         stroke: '#fff',
         strokeWidth: 1,
         originX: 'center',
         originY: 'center'
       });
 
-      // ป้ายข้อความหมายเลขอักษรกำกับกรวย (เช่น L12, R16)
       const label = new fabric.Textbox(cone.name, {
-        fontSize: 9,
+        fontSize: Math.max(7, size * 0.5),
         fontFamily: 'monospace',
         fontWeight: 'bold',
         fill: '#fcd34d',
         backgroundColor: '#0f172aee',
         originX: 'center',
         originY: 'top',
-        top: 8,
+        top: size/2 + 2,
         textAlign: 'center'
       });
 
       const coneGroup = new fabric.Group([coneShape, label], {
-        left: x,
-        top: y,
-        originX: 'center',
-        originY: 'center',
-        hasControls: false,
-        hasBorders: true,
-        borderColor: '#f59e0b',
-        hoverCursor: 'pointer',
-        moveCursor: 'move'
+        left: x, top: y, originX: 'center', originY: 'center', hasControls: false, hasBorders: true, borderColor: '#f59e0b', hoverCursor: 'pointer', moveCursor: 'move'
       });
 
-      // ผูก Flag พิเศษเพื่อให้แยกแยะอัปเดตสเตตใน Store ได้ถูกต้องไม่สับสนกับตัวนักแสดง
       (coneGroup as any).id = cone.id;
       (coneGroup as any).isCone = true;
 
       conesGroups.current.set(cone.id, coneGroup);
-      
-      // นำกรวยลงปักบนพื้นสนาม (เรนเดอร์ก่อนตัวคนเดินเพื่อให้อยู่เลเยอร์ด้านล่าง ไม่บังคน)
       canvas.add(coneGroup);
     });
 
     canvas.renderAll();
-  }, [cones, isPlaying, canvasConfig]);
+  }, [cones, isPlaying, dimensions, canvasConfig]);
 
-  // Editing Mode: Render Performers
+  // Render Performers
   useEffect(() => {
     const canvas = fabricCanvas.current;
     if (!canvas || isPlaying) return;
@@ -255,6 +246,9 @@ const MarchingCanvas: React.FC = () => {
     performersGroups.current.forEach(group => canvas.remove(group));
     performersGroups.current.clear();
 
+    const scale = getDynamicScale(dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
+    const radius = Math.max(7, scale * 0.35); // รัศมีวงกลมนักแสดงแปรผันอย่างเหมาะสม ไม่ให้ดูล้นตาราง
+
     performers.forEach((performer) => {
       const pos = currentSet.positions[performer.id] || { x: 0, y: 0 };
       const { x, y } = gridToCanvas(pos.x, pos.y, dimensions.width, dimensions.height, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
@@ -262,32 +256,19 @@ const MarchingCanvas: React.FC = () => {
       const isSelected = selectedPerformerId === performer.id;
 
       const circle = new fabric.Circle({ 
-        radius: 10, 
-        fill: performer.color, 
-        originX: 'center', 
-        originY: 'center', 
-        stroke: isSelected ? '#22d3ee' : '#ffffff', 
-        strokeWidth: isSelected ? 3 : 1.5 
+        radius: radius, fill: performer.color, originX: 'center', originY: 'center', stroke: isSelected ? '#22d3ee' : '#ffffff', strokeWidth: isSelected ? 2.5 : 1.2 
       });
       
       const label = new fabric.Textbox(performer.symbol, { 
-        fontSize: 12, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center' 
+        fontSize: radius * 1.1, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
       });
       
       const group = new fabric.Group([circle, label], { 
-        left: x, 
-        top: y, 
-        originX: 'center', 
-        originY: 'center', 
-        hasControls: false, 
-        hasBorders: isSelected, 
-        borderColor: '#22d3ee',
-        hoverCursor: 'grab', 
-        moveCursor: 'grabbing'
+        left: x, top: y, originX: 'center', originY: 'center', hasControls: false, hasBorders: isSelected, borderColor: '#22d3ee', hoverCursor: 'grab', moveCursor: 'grabbing'
       });
       
       group.id = performer.id;
-      (group as any).isCone = false; // ชี้ชัดว่าเป็นนักแสดงไม่ใช่หมุดกรวย
+      (group as any).isCone = false;
       performersGroups.current.set(performer.id, group);
       canvas.add(group);
 
@@ -297,9 +278,9 @@ const MarchingCanvas: React.FC = () => {
     });
 
     canvas.renderAll();
-  }, [performers, currentSetIndex, sets, isPlaying, selectedPerformerId, canvasConfig]);
+  }, [performers, currentSetIndex, sets, isPlaying, selectedPerformerId, dimensions, canvasConfig]);
 
-  // Playback Mode: LERP Animation
+  // Playback Mode LERP
   useEffect(() => {
     const canvas = fabricCanvas.current;
     if (!canvas || !isPlaying || sets.length === 0) return;
@@ -327,11 +308,7 @@ const MarchingCanvas: React.FC = () => {
     const endTime = cumulative[idx] || startTime;
     let t = 0;
     const denom = endTime - startTime;
-    if (denom > 0) {
-      t = (currentTime - startTime) / denom;
-    } else {
-      t = 0;
-    }
+    if (denom > 0) t = (currentTime - startTime) / denom;
     t = Math.max(0, Math.min(1, t));
 
     performersGroups.current.forEach((group, id) => {
@@ -347,17 +324,17 @@ const MarchingCanvas: React.FC = () => {
     });
 
     canvas.renderAll();
-  }, [currentTime, isPlaying, sets, dimensions, canvasConfig.gridMaxX, canvasConfig.gridMaxY]);
+  }, [currentTime, isPlaying, sets, dimensions, canvasConfig]);
 
   return (
+    // เปลี่ยนมาผูก ref ไว้ที่ Div นอกสุดเพื่อให้มันดักจับมิติพื้นที่ฝั่งขวาของ Browser ได้เต็ม 100% จริงๆ
     <div 
-      className={`w-full h-[calc(100vh-280px)] overflow-auto border border-slate-700 rounded-xl bg-[#0f172a] shadow-inner p-4 custom-scrollbar ring-4 transition-all ${
-        isPlaying ? 'ring-purple-500 shadow-purple-900/30' : 'ring-slate-900/50'
+      ref={containerRef}
+      className={`w-full h-full bg-[#0f172a] flex items-center justify-center transition-all ${
+        isPlaying ? 'ring-2 ring-purple-500/50 shadow-lg shadow-purple-900/10' : ''
       }`}
     >
-      <div className="mx-auto" style={{ width: dimensions.width, height: dimensions.height }} ref={containerRef}>
-        <canvas ref={canvasRef} />
-      </div>
+      <canvas ref={canvasRef} />
     </div>
   );
 };

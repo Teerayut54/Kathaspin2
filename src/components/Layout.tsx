@@ -7,7 +7,6 @@ import { useAudioSync } from '../hooks/useAudioSync';
 
 const Layout: React.FC = () => {
   const waveformRef = useRef<HTMLDivElement | null>(null);
-  // 👈 ดึง removeAudio ออกมาจากตัวแปรตรงนี้
   const { setAudioFile, removeAudio, togglePlay, stop, hasAudio } = useAudioSync(waveformRef);
 
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -16,26 +15,27 @@ const Layout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-900 text-slate-100 overflow-hidden">
-      {/* 1. Header (ควบคุมการเล่นแอนิเมชันหลักจากด้านบน) */}
+    <div className="flex flex-col h-screen w-full bg-slate-900 text-slate-100 overflow-hidden select-none">
+      {/* 1. Header */}
       <Header togglePlay={togglePlay} stop={stop} />
       
-      {/* 2. Main Workspace (Sidebar + Canvas) */}
+      {/* 2. Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar (Performers) */}
+        {/* Left Sidebar */}
         <div className="w-64 border-r border-slate-700 bg-slate-800 flex flex-col shrink-0 overflow-hidden">
           <Sidebar />
         </div>
         
-        {/* Center Canvas */}
-        <div className="flex-1 bg-slate-900 flex items-center justify-center p-4 relative overflow-auto custom-scrollbar">
-          <MarchingCanvas />
+        {/* Center Canvas (ยืดขยายเต็ม 100% ไร้ Overflow บังคับวาดกระดานชนขอบกล่องพอดี) */}
+        <div className="flex-1 bg-slate-950 p-4 flex overflow-hidden">
+          <div className="flex-1 w-full border border-slate-800 rounded-xl bg-[#0f172a] shadow-inner overflow-hidden">
+            <MarchingCanvas />
+          </div>
         </div>
       </div>
       
-      {/* 3. Bottom Panel (ส่งฟังก์ชันอัปโหลดเพลง และพาสถานะมีเสียง/ไม่มีเสียงไปที่ตัวไทม์ไลน์) */}
+      {/* 3. Bottom Panel */}
       <div className="h-44 border-t border-slate-700 bg-slate-800 shrink-0 flex flex-col">
-        {/* 👈 ส่ง removeAudio เข้าไปให้ BottomPanel */}
         <BottomPanel 
           waveformRef={waveformRef} 
           handleAudioUpload={handleAudioUpload} 

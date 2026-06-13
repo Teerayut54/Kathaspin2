@@ -1,6 +1,6 @@
 import React from 'react';
 import { useProjectStore } from '../store/projectStore';
-import { Trash2, UserPlus, Clock, MapPin } from 'lucide-react'; // เพิ่มไอคอน MapPin สำหรับฟังก์ชันกรวยสนาม
+import { Trash2, UserPlus, Clock, MapPin } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
   // --- 🌟 State & Actions จาก Store เดิม ---
@@ -21,7 +21,7 @@ const Sidebar: React.FC = () => {
   const updateGridDimensions = useProjectStore(state => state.updateGridDimensions);
 
   // --- 🌟 State & Actions เพิ่มเติมสำหรับระบบกรวยสนาม ---
-  const cones = useProjectStore(state => state.cones) || []; // ดึงรายการกรวย (ใส่ fallback ป้องกันพัง)
+  const cones = useProjectStore(state => state.cones) || []; 
   const generateConeByCoords = useProjectStore(state => state.generateConeByCoords);
   const updateConePosition = useProjectStore(state => state.updateConePosition);
   const removeCone = useProjectStore(state => state.removeCone);
@@ -46,7 +46,7 @@ const Sidebar: React.FC = () => {
       id: newId,
       name: `Trumpet ${nextNumber}`,
       color: assignedColor,
-      symbol: 'x'
+      symbol: 'X' // เปลี่ยน default ให้ตรงกับ symbol ที่มีให้เลือก
     };
 
     addPerformer(newPerformer);
@@ -58,7 +58,6 @@ const Sidebar: React.FC = () => {
     const targetX = Number(inputX) || 0;
     const targetY = Number(inputY) || 0;
     
-    // คำนวณชื่อตั้งต้นกรณีผู้ใช้ปล่อยว่างไว้ (เช่น กรวยพิกัดด่วน "L12" หรือ "R12")
     let autoLabel = coneLabel.trim();
     if (!autoLabel) {
       if (targetX < 0) autoLabel = `L${Math.abs(targetX)}`;
@@ -68,7 +67,7 @@ const Sidebar: React.FC = () => {
 
     if (generateConeByCoords) {
       generateConeByCoords(targetX, targetY, autoLabel);
-      setConeLabel(''); // เคลียร์ช่องกรอกข้อความหลังกดยิงสร้างเสร็จเรียบร้อย
+      setConeLabel(''); 
     }
   };
 
@@ -92,47 +91,95 @@ const Sidebar: React.FC = () => {
         {performers.map((p) => {
           const position = currentSet?.positions?.[p.id] || { x: 0, y: 0 };
           const isSelected = selectedPerformerId === p.id;
-          const coordinateText = `X: ${position.x.toFixed(1)}, Y: ${position.y.toFixed(1)}`;
+          
+          // รายการสัญลักษณ์และสี
+          const availableSymbols = ['X', 'O', '▲', '■', '★', '♦'];
+          const quickColors = ['#22c55e', '#3b82f6', '#ec4899', '#f59e0b', '#a855f7', '#ef4444'];
 
           return (
-            <div
-              key={p.id}
-              onClick={() => setSelectedPerformerId(p.id)}
+            <div 
+              key={p.id} 
+              onClick={() => setSelectedPerformerId(p.id)} 
               className={`p-3 rounded-lg border transition-all cursor-pointer flex flex-col gap-2 ${
-                isSelected
-                  ? 'bg-cyan-950/60 border-cyan-400 shadow-md shadow-cyan-500/10'
-                  : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 text-slate-300'
+                isSelected ? 'bg-cyan-950/60 border-cyan-400 shadow-md shadow-cyan-500/10' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'
               }`}
             >
+              {/* ส่วนหัว: ID และ ชื่อนักแสดง */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 font-bold text-cyan-400">
-                    {p.id}
-                  </span>
-                  <input
-                    type="text"
-                    value={p.name}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => updatePerformer(p.id, { name: e.target.value })}
-                    className="bg-transparent font-medium text-xs focus:outline-none focus:border-b border-slate-500 w-28 text-slate-100"
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-cyan-400 font-bold">{p.id}</span>
+                  <input 
+                    type="text" 
+                    value={p.name} 
+                    onClick={(e) => e.stopPropagation()} 
+                    onChange={(e) => updatePerformer(p.id, { name: e.target.value })} 
+                    className="bg-transparent font-medium text-xs focus:outline-none focus:border-b border-slate-500 w-28" 
                   />
                 </div>
-                
                 <button 
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    removePerformer(p.id);
-                  }}
-                  className="text-slate-500 hover:text-rose-400 transition p-1"
+                    removePerformer(p.id); 
+                  }} 
+                  className="text-slate-500 hover:text-rose-400"
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
 
+              {/* 🛠️ เพิ่มใหม่: ส่วนควบคุมการเปลี่ยน "สัญลักษณ์" และ "สี" */}
+              {isSelected && (
+                <div className="space-y-2 mt-1 p-2 bg-slate-900/80 rounded-md border border-slate-700/50" onClick={(e) => e.stopPropagation()}>
+                  
+                  {/* เลือกสัญลักษณ์ (Symbol Picker) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 min-w-[50px]">สัญลักษณ์:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {availableSymbols.map((sym) => (
+                        <button
+                          key={sym}
+                          onClick={() => updatePerformer(p.id, { symbol: sym })}
+                          className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                            p.symbol === sym ? 'bg-cyan-500 text-slate-950 scale-110' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          }`}
+                        >
+                          {sym}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* เลือกสี (Color Picker) */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 min-w-[50px]">เปลี่ยนสี:</span>
+                    <div className="flex items-center gap-1 flex-wrap flex-1">
+                      {quickColors.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => updatePerformer(p.id, { color: color })}
+                          className={`w-4 h-4 rounded-full border transition ${
+                            p.color === color ? 'border-white scale-125 shadow-md ring-1 ring-cyan-400' : 'border-transparent opacity-70 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                      {/* ช่องเลือกสีแบบละเอียดอิสระ */}
+                      <input 
+                        type="color" 
+                        value={p.color} 
+                        onChange={(e) => updatePerformer(p.id, { color: e.target.value })}
+                        className="w-5 h-5 p-0 bg-transparent border-0 cursor-pointer rounded"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ส่วนท้าย: แสดงสถานะพิกัด และตัวอย่างจุด */}
               <div className="flex items-center justify-between text-[11px] font-mono mt-1">
                 <div className="flex items-center gap-1.5">
                   <div 
-                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold" 
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white font-bold shadow-inner transition-colors" 
                     style={{ backgroundColor: p.color }}
                   >
                     {p.symbol}
@@ -140,7 +187,7 @@ const Sidebar: React.FC = () => {
                   <span className="text-slate-400">พิกัดปัจจุบัน:</span>
                 </div>
                 <span className="text-cyan-400 font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/60">
-                  {coordinateText}
+                  X: {position.x.toFixed(1)}, Y: {position.y.toFixed(1)}
                 </span>
               </div>
             </div>
@@ -151,7 +198,7 @@ const Sidebar: React.FC = () => {
       {/* 🛠️ ส่วนล่าง: Inspector Panel ประกอบด้วยแผงควบคุมหลัก 3 ส่วน */}
       <div className="p-4 bg-slate-950 border-t border-slate-800 space-y-4 shrink-0 shadow-2xl max-h-[60%] overflow-y-auto">
         
-        {/* 📝 ส่วนที่ 1: Set Properties (ตั้งชื่อเซ็ตปัจจุบัน และ ปรับเวลาวินาที) */}
+        {/* 📝 ส่วนที่ 1: Set Properties */}
         {currentSet && (
           <div className="space-y-1">
             <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
@@ -199,7 +246,7 @@ const Sidebar: React.FC = () => {
           </div>
         )}
 
-        {/* 🛠️ ส่วนที่ 2: Cone Management (เพิ่มระบบวางและกรอกตัวเลขกรวยสนาม) */}
+        {/* 🛠️ ส่วนที่ 2: Cone Management */}
         <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
           <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
             Cone Management (จัดการกรวยสนาม)
@@ -246,7 +293,6 @@ const Sidebar: React.FC = () => {
             </button>
           </div>
 
-          {/* ตารางสกรอลล์สรุปและปรับแก้ตัวเลขกรวยแบบแมนนวล */}
           {cones.length > 0 && (
             <div className="space-y-1 max-h-[110px] overflow-y-auto pr-1 mt-1 border border-slate-800/40 rounded bg-slate-950/40 p-1">
               {cones.map((cone) => (
@@ -280,7 +326,7 @@ const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* 🎛️ ส่วนที่ 3: Field Grid Size (จำนวนช่องตาราง) */}
+        {/* 🎛️ ส่วนที่ 3: Field Grid Size */}
         <div className="space-y-2 pt-2 border-t border-slate-800/60">
           <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
             Field Grid Size (จำนวนช่องตาราง)
