@@ -29,9 +29,8 @@ export interface ProjectData {
 }
 
 export interface CanvasConfig {
-  width: number;
-  height: number;
-  scale: number;
+  gridMaxX: number; // จำนวนบล็อกตารางฝั่งขวา (เช่น 16)
+  gridMaxY: number; // จำนวนบล็อกตารางแนวลึก (เช่น 16)
 }
 
 export interface Cone {
@@ -44,11 +43,18 @@ export interface Cone {
 
 interface ProjectState {
   data: ProjectData;
-  currentSetIndex: number; // ใช้ระบุเซ็ตที่เลือก/แสดงอยู่ปัจจุบัน
+  currentSetIndex: number; 
   currentTime: number;
   isPlaying: boolean;
   selectedPerformerId: string | null;
-  canvasConfig: CanvasConfig; // สเตตเก็บขนาดสนามและสเกลที่เพิ่มเข้ามาใหม่
+  canvasConfig: CanvasConfig; 
+  
+  // 🟢 เพิ่ม State สำหรับ Zoom
+  zoomRatio: number;
+  setZoomRatio: (zoom: number) => void;
+
+  // ปรับขนาดสนามโดยระบุจำนวนบล็อกตารางในแกน X และ Y
+  updateGridDimensions: (maxX: number, maxY: number) => void;
 
   setData: (data: ProjectData) => void;
   updateMetadata: (meta: Partial<Metadata>) => void;
@@ -59,8 +65,8 @@ interface ProjectState {
 
   addSet: (set: SetData) => void;
   updateSetPositions: (setIndex: number, performerId: string, x: number, y: number) => void;
-  updateSetTitle: (setIndex: number, title: string) => void; // ฟังก์ชันอัปเดตชื่อเซ็ต
-  updateSetDuration: (setIndex: number, newDuration: number) => void; // 🛠️ รวมเหลือตัวเดียว รับเป็น Index ปลอดภัยที่สุด
+  updateSetTitle: (setIndex: number, title: string) => void; 
+  updateSetDuration: (setIndex: number, newDuration: number) => void; 
 
   setCurrentSetIndex: (index: number) => void;
   setCurrentTime: (time: number) => void;
@@ -70,13 +76,13 @@ interface ProjectState {
   removeSet: (setIndex: number) => void;
 
   setSelectedPerformerId: (id: string | null) => void;
-  updateCanvasSize: (width: number, height: number) => void; // ฟังก์ชันปรับขนาดสนาม
+  // pixel-based canvas sizing removed; use responsive container + grid dimensions
 
-  cones: Cone[]; // เก็บรายการกรวยทั้งหมดในสนาม
+  cones: Cone[]; 
   addCone: (cone: Cone) => void;
   removeCone: (id: string) => void;
   updateConePosition: (id: string, x: number, y: number) => void;
-  generateConeByCoords: (x: number, y: number, name?: string) => void; // 🛠️ ฟังก์ชันกรอกเลขแล้วสร้างกรวย
+  generateConeByCoords: (x: number, y: number, name?: string) => void; 
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -90,7 +96,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       {
         setNumber: 0,
         title: 'Start',
-        duration: 0, // เซ็ตแรกสุดเป็นจุดสตาร์ท เริ่มที่ 0 วินาทีเสมอ
+        duration: 0, 
         positions: {
           'P01': { x: -3, y: 4 },
           'C01': { x: 0, y: 2 }
@@ -112,12 +118,21 @@ export const useProjectStore = create<ProjectState>((set) => ({
   isPlaying: false,
   selectedPerformerId: null,
   
-  // ค่าเริ่มต้นของ Canvas กำหนดไว้ที่นี่
   canvasConfig: {
-    width: 1200,
-    height: 600,
-    scale: 50,
+    gridMaxX: 16,
+    gridMaxY: 16,
   },
+
+  // 🟢 ค่าเริ่มต้นและ Logic ของ Zoom
+  zoomRatio: 1,
+  setZoomRatio: (zoom) => set({ zoomRatio: Math.max(0.2, Math.min(4, zoom)) }),
+
+  updateGridDimensions: (maxX, maxY) => set(() => ({
+    canvasConfig: {
+      gridMaxX: Math.max(4, Math.floor(maxX)),
+      gridMaxY: Math.max(4, Math.floor(maxY))
+    }
+  })),
 
   setData: (data) => set({ data }),
 
@@ -173,17 +188,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
     return { data: { ...state.data, sets: newSets } };
   }),
 
-  // 🛠️ ปรับปรุงลอจิกให้รับค่าเป็น Index และมีระบบ Safe-Guard ป้องกันวิเป็น 0 หรือติดลบ
   updateSetDuration: (setIndex, newDuration) => set((state) => {
     const newSets = [...state.data.sets];
     if (newSets[setIndex]) {
-      // เซ็ตที่ 0 บังคับเป็น 0 วินาทีเสมอ ส่วนเซ็ตที่เหลือต้องมีเวลาขั้นต่ำอย่างน้อย 0.5 วินาที
       newSets[setIndex].duration = setIndex === 0 ? 0 : Math.max(0.5, newDuration);
     }
     return { data: { ...state.data, sets: newSets } };
   }),
 
-  // ฟังก์ชันอัปเดตชื่อเซ็ต
   updateSetTitle: (setIndex, title) => set((state) => {
     const newSets = [...state.data.sets];
     if (newSets[setIndex]) {
@@ -237,21 +249,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setSelectedPerformerId: (id) => set({ selectedPerformerId: id }),
 
-  // ฟังก์ชันปรับขนาดสนาม
-  updateCanvasSize: (width, height) => set((state) => ({
-    canvasConfig: {
-      width,
-      height,
-      scale: state.canvasConfig.scale 
-    }
-  })),
+  // removed: pixel-based updateCanvasSize — canvas pixel sizing handled in component
 
-  // ==========================================
-  // 🟢 3. Actions สำหรับจัดการกรวย (Cones) ที่เพิ่มเข้ามา
-  // ==========================================
-  
   cones: [
-    // ใส่ค่าเริ่มต้นจำลองไว้ทดสอบ
     { id: 'cone-1', name: 'L12', x: -12, y: 8, color: '#ff6b1a' },
     { id: 'cone-2', name: 'R12', x: 12, y: 8, color: '#ff6b1a' }
   ],
@@ -262,20 +262,18 @@ export const useProjectStore = create<ProjectState>((set) => ({
     cones: state.cones.filter(c => c.id !== id)
   })),
 
-  // ฟังก์ชันนี้จะถูกเรียกใช้ ทั้งตอนที่ "กรอกตัวเลขเปลี่ยนในแผงควบคุม" และตอน "ใช้เมาส์ลากกรวยบนจอ"
   updateConePosition: (id, x, y) => set((state) => ({
     cones: state.cones.map(c => c.id === id ? { ...c, x, y } : c)
   })),
 
-  // 🛠️ แอ็กชันพิเศษ: รับพิกัดตัวเลขไปสร้างเป็นกรวยชิ้นใหม่ทันที
   generateConeByCoords: (x, y, name) => set((state) => {
     const nextNum = state.cones.length + 1;
     const newCone: Cone = {
-      id: `cone-${Date.now()}`, // ใช้ timestamp ป้องกัน ID ซ้ำ
+      id: `cone-${Date.now()}`,
       name: name || `กรวย ${nextNum}`,
       x: x,
       y: y,
-      color: '#ff6b1a' // สีส้มเด่นชัดสไตล์กรวยสนามซ้อม
+      color: '#ff6b1a' 
     };
     return { cones: [...state.cones, newCone] };
   }),

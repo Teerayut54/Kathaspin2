@@ -18,7 +18,7 @@ const Sidebar: React.FC = () => {
 
   const updateSetTitle = useProjectStore(state => state.updateSetTitle);
   const updateSetDuration = useProjectStore(state => state.updateSetDuration);
-  const updateCanvasSize = useProjectStore(state => state.updateCanvasSize);
+  const updateGridDimensions = useProjectStore(state => state.updateGridDimensions);
 
   // --- 🌟 State & Actions เพิ่มเติมสำหรับระบบกรวยสนาม ---
   const cones = useProjectStore(state => state.cones) || []; // ดึงรายการกรวย (ใส่ fallback ป้องกันพัง)
@@ -280,42 +280,38 @@ const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* 🎛️ ส่วนที่ 3: Canvas Size (ระบบสไลเดอร์ปรับขนาด Canvas สนามเดิม) */}
+        {/* 🎛️ ส่วนที่ 3: Field Grid Size (จำนวนช่องตาราง) */}
         <div className="space-y-2 pt-2 border-t border-slate-800/60">
           <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
-            Canvas Size (ขนาดสนาม)
+            Field Grid Size (จำนวนช่องตาราง)
           </label>
-          
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px]">
-              <span className="text-slate-400">ความกว้าง (X):</span>
-              <span className="text-cyan-400 font-mono font-bold">{canvasConfig.width}px</span>
-            </div>
-            <input 
-              type="range" 
-              min="800" 
-              max="2400" 
-              step="100"
-              value={canvasConfig.width}
-              onChange={(e) => updateCanvasSize(Number(e.target.value), canvasConfig.height)}
-              className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-            />
-          </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between text-[11px]">
-              <span className="text-slate-400">ความลึก (Y):</span>
-              <span className="text-cyan-400 font-mono font-bold">{canvasConfig.height}px</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] gap-3">
+              <div className="flex-1">
+                <span className="text-[10px] text-slate-400 block">ขอบกว้าง (X-Max):</span>
+                <input
+                  type="number"
+                  min={4}
+                  value={canvasConfig.gridMaxX}
+                  onChange={(e) => updateGridDimensions(Number(e.target.value || 4), canvasConfig.gridMaxY)}
+                  className="w-full px-2 py-1 bg-slate-950 border border-slate-800 rounded text-xs text-cyan-400 font-mono font-bold focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">ขอบสนามจะกว้าง L{canvasConfig.gridMaxX} ถึง R{canvasConfig.gridMaxX}</p>
+              </div>
+
+              <div className="w-36">
+                <span className="text-[10px] text-slate-400 block">ระยะลึก (Y-Max):</span>
+                <input
+                  type="number"
+                  min={4}
+                  value={canvasConfig.gridMaxY}
+                  onChange={(e) => updateGridDimensions(canvasConfig.gridMaxX, Number(e.target.value || 4))}
+                  className="w-full px-2 py-1 bg-slate-950 border border-slate-800 rounded text-xs text-cyan-400 font-mono font-bold focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">รวมความลึกทั้งหมด {canvasConfig.gridMaxY} ช่อง</p>
+              </div>
             </div>
-            <input 
-              type="range" 
-              min="400" 
-              max="1200" 
-              step="50"
-              value={canvasConfig.height}
-              onChange={(e) => updateCanvasSize(canvasConfig.width, Number(e.target.value))}
-              className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-            />
           </div>
         </div>
 
