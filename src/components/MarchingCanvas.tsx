@@ -107,8 +107,13 @@ const MarchingCanvas: React.FC = () => {
 
   const drawGrid = (canvas: fabric.Canvas, width: number, height: number, maxX: number, maxY: number) => {
     const fontSize = 10;
-    const coneSize = 12;
+    const coneSize = 11;
 
+    // ==========================================
+    // 🧱 STEP 1: วาด "เส้นตารางทั้งหมด" ลงไปก่อน (อยู่เลเยอร์ล่างสุด)
+    // ==========================================
+    
+    // วาดเส้นแนวนอน (แกน Y)
     for (let i = 0; i <= maxY; i++) {
       const { y } = gridToCanvas(0, i, width, height, maxX, maxY);
       canvas.add(new fabric.Line([0, y, width, y], {
@@ -116,58 +121,108 @@ const MarchingCanvas: React.FC = () => {
         strokeWidth: i % 4 === 0 ? 1.5 : 1,
         selectable: false, evented: false
       }));
-
-      if (i % 4 === 0) {
-        [-maxX, maxX].forEach((xPos) => {
-          const { x } = gridToCanvas(xPos, i, width, height, maxX, maxY);
-          const sideCone = new fabric.Polygon([
-            { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
-          ], {
-            left: x + (xPos > 0 ? 10 : -10), top: y, fill: '#ff6b1a', stroke: '#fff', strokeWidth: 0.8, originX: 'center', originY: 'center', selectable: false, evented: false
-          });
-          const sideLabel = new fabric.Textbox(`Y:${i}`, {
-            left: x + (xPos > 0 ? 24 : -48), top: y - 5, fontSize: fontSize, fill: '#64748b', fontFamily: 'monospace', selectable: false, evented: false
-          });
-          canvas.add(sideCone, sideLabel);
-        });
-      }
     }
 
+    // วาดเส้นแนวตั้ง (แกน X)
     for (let i = -maxX; i <= maxX; i++) {
-      const { x, y: bottomY } = gridToCanvas(i, 0, width, height, maxX, maxY);
-      const { y: topY } = gridToCanvas(i, maxY, width, height, maxX, maxY);
-      
+      const { x } = gridToCanvas(i, 0, width, height, maxX, maxY);
       canvas.add(new fabric.Line([x, 0, x, height], {
         stroke: i === 0 ? '#475569' : (i % 4 === 0 ? '#334155' : '#1e293b'),
         strokeWidth: i === 0 || i % 4 === 0 ? 1.5 : 1,
         selectable: false, evented: false
       }));
-      
-      if (i % 4 === 0) {
-        const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
-        const isCenter = i === 0;
+    }
 
-        [bottomY + 8, topY - 12].forEach((yPos, index) => {
-          const markerCone = new fabric.Polygon([
-            { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
-          ], {
-            left: x, top: yPos, fill: isCenter ? '#0ea5e9' : '#ff6b1a', stroke: '#fff', strokeWidth: 0.8, originX: 'center', originY: 'center', selectable: false, evented: false
-          });
+    // ==========================================
+    // 🎨 STEP 2: วาด "กรวยและป้ายพิกัด" ทีหลัง (จะลอยอยู่ด้านบนสุดหน้าเส้นกราฟ)
+    // ==========================================
+
+    // พ่นวัตถุพิกัดของแกน Y (ซ้าย-ขวา)
+    for (let i = 0; i <= maxY; i++) {
+      if (i % 1 === 0) { // วาดทุกเส้นพิกัด
+        const { y } = gridToCanvas(0, i, width, height, maxX, maxY);
+        
+        [-maxX, maxX].forEach((xPos) => {
+          const { x } = gridToCanvas(xPos, i, width, height, maxX, maxY);
           
-          const markerLabel = new fabric.Textbox(label, {
-            left: x, 
-            top: yPos + (index === 0 ? 8 : -16), 
+          // วาดกรวยแกน Y (ลอยทับหน้าเส้นตาราง)
+          if (i !== 0 && i !== maxY) {
+            const sideCone = new fabric.Polygon([
+              { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
+            ], {
+              left: x, 
+              top: y, 
+              fill: '#ff6b1a', 
+              stroke: '#fff', 
+              strokeWidth: 0.8, 
+              originX: 'center', 
+              originY: 'center', 
+              selectable: false, 
+              evented: false
+            });
+            canvas.add(sideCone);
+          }
+
+          // วาดป้ายพิกัดแกน Y (ลอยทับหน้าเส้นตาราง)
+          const sideLabel = new fabric.Textbox(`Y:${i}`, {
+            left: x + (xPos > 0 ? 32 : -32), 
+            top: y, 
             fontSize: fontSize, 
-            fill: isCenter ? '#38bdf8' : '#64748b', 
+            fontWeight: 'bold',
+            fill: '#e2e8f0', 
             fontFamily: 'monospace', 
-            textAlign: 'center',
             originX: 'center',
+            originY: 'center', 
+            textAlign: 'center',
             selectable: false, 
-            evented: false
+            evented: false,
+            textBackgroundColor: 'rgba(11, 15, 25, 0.85)' 
           });
-          canvas.add(markerCone, markerLabel);
+          canvas.add(sideLabel);
         });
       }
+    }
+
+    // พ่นวัตถุพิกัดของแกน X (บน-ล่าง)
+    for (let i = -maxX; i <= maxX; i++) {
+      const { x, y: bottomY } = gridToCanvas(i, 0, width, height, maxX, maxY);
+      const { y: topY } = gridToCanvas(i, maxY, width, height, maxX, maxY);
+      
+      const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
+      const isCenter = i === 0;
+
+      [bottomY - 4, topY + 4].forEach((yPos, index) => {
+        // วาดกรวยแกน X (ลอยทับหน้าเส้นตาราง)
+        const markerCone = new fabric.Polygon([
+          { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
+        ], {
+          left: x, 
+          top: yPos, 
+          fill: isCenter ? '#0ea5e9' : '#ff6b1a', 
+          stroke: '#fff', 
+          strokeWidth: 0.8, 
+          originX: 'center', 
+          originY: 'center', 
+          selectable: false, 
+          evented: false
+        });
+        
+        // วาดป้ายพิกัดแกน X (ลอยทับหน้าเส้นตาราง)
+        const markerLabel = new fabric.Textbox(label, {
+          left: x, 
+          top: yPos + (index === 0 ? 16 : -24), 
+          fontSize: fontSize + 1, 
+          fontWeight: 'bold',
+          fill: isCenter ? '#38bdf8' : '#e2e8f0', 
+          fontFamily: 'monospace', 
+          textAlign: 'center',
+          originX: 'center',
+          selectable: false, 
+          evented: false,
+          textBackgroundColor: 'rgba(11, 15, 25, 0.85)'
+        });
+        canvas.add(markerCone, markerLabel);
+      });
     }
   };
 
@@ -181,7 +236,7 @@ const MarchingCanvas: React.FC = () => {
     performersGroups.current.forEach(group => canvas.remove(group));
     performersGroups.current.clear();
 
-    const radius = 12;
+    const radius = 9.5; // ลดรัศมีจาก 12 เป็น 9.5 เพื่อลดการซ้อนทับ
 
     performers.forEach((performer) => {
       const pos = currentSet.positions[performer.id] || { x: 0, y: 0 };
@@ -190,11 +245,11 @@ const MarchingCanvas: React.FC = () => {
       const isSelected = selectedPerformerId === performer.id;
 
       const circle = new fabric.Circle({ 
-        radius: radius, fill: performer.color, originX: 'center', originY: 'center', stroke: isSelected ? '#22d3ee' : '#ffffff', strokeWidth: isSelected ? 2.5 : 1.2 
+        radius: radius, fill: performer.color, originX: 'center', originY: 'center', stroke: isSelected ? '#22d3ee' : '#ffffff', strokeWidth: isSelected ? 2 : 1.2 
       });
       
       const label = new fabric.Textbox(performer.symbol, { 
-        fontSize: radius * 1.1, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
+        fontSize: radius * 1.2, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
       });
       
       const group = new fabric.Group([circle, label], { 
