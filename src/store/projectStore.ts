@@ -8,8 +8,9 @@ export interface Performer {
   id: string;
   name: string;
   color: string;
-  symbol: string;
-  indexNumber?: string;
+  baseShape: 'circle' | 'square' | 'triangle' | 'diamond';
+  innerContentType: 'none' | 'number' | 'icon';
+  innerContentValue?: string;
 }
 
 export interface SetPositions {
@@ -86,8 +87,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
   data: {
     metadata: { projectName: 'My Marching Show' },
     performers: [
-      { id: 'P01', name: 'Trumpet 1', color: '#ef4444', symbol: 'x' },
-      { id: 'C01', name: 'Drum Major', color: '#3b82f6', symbol: 'o' }
+      { id: 'P01', name: 'Trumpet 1', color: '#ef4444', baseShape: 'circle', innerContentType: 'icon', innerContentValue: 'X' },
+      { id: 'C01', name: 'Drum Major', color: '#3b82f6', baseShape: 'circle', innerContentType: 'icon', innerContentValue: 'O' }
     ],
     sets: [
       {

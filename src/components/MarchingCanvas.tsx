@@ -91,15 +91,15 @@ const MarchingCanvas: React.FC = () => {
       if (target && target.id && !target.isCone) {
         const p = useProjectStore.getState().data.performers.find(p => p.id === target.id);
         if (p) {
-          const wrapper = canvas.getElement().parentElement;
-          if (wrapper) wrapper.title = p.name;
+          const el = canvas?.getElement?.();
+          if (el && el.parentElement) el.parentElement.title = p.name;
         }
       }
     });
 
     canvas.on('mouse:out', () => {
-      const wrapper = canvas.getElement().parentElement;
-      if (wrapper) wrapper.title = '';
+      const el = canvas?.getElement?.();
+      if (el && el.parentElement) el.parentElement.title = '';
     });
 
     return () => {
@@ -269,39 +269,40 @@ const MarchingCanvas: React.FC = () => {
         fill: performer.color,
         stroke: isSelected ? '#22d3ee' : '#ffffff',
         strokeWidth: isSelected ? 2 : 1.2
-      };
+      } as const;
+
+      // 🛠️ Backwards Compatibility: Handle legacy state where `symbol` existed
+      const pLegacy = performer as any;
+      const shapeType = performer.baseShape || 'circle';
+      const innerType = performer.innerContentType || (pLegacy.symbol ? 'icon' : 'none');
+      const innerVal = performer.innerContentValue || pLegacy.symbol || '';
 
       let baseShape;
-      if (performer.symbol === '▲') {
+      if (shapeType === 'triangle') {
         baseShape = new fabric.Triangle({ width: radius * 2.2, height: radius * 2.2, ...commonConfig });
-      } else if (performer.symbol === '■') {
+      } else if (shapeType === 'square') {
         baseShape = new fabric.Rect({ width: radius * 1.8, height: radius * 1.8, rx: 2, ry: 2, ...commonConfig });
+      } else if (shapeType === 'diamond') {
+        baseShape = new fabric.Rect({ width: radius * 1.6, height: radius * 1.6, rx: 1, ry: 1, angle: 45, ...commonConfig });
       } else {
         baseShape = new fabric.Circle({ radius, ...commonConfig });
       }
 
       const objects: any[] = [baseShape];
 
-      // Draw text symbol for unsupported native geometric shapes
-      if (!['▲', '■'].includes(performer.symbol)) {
-        objects.push(new fabric.Textbox(performer.symbol, { 
-          fontSize: radius * 1.2, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
-        }));
-      }
-
-      // 🌟 Task 1.5: Render Index Number directly in center
-      if (performer.indexNumber) {
-        objects.push(new fabric.Textbox(performer.indexNumber, {
-          fontSize: radius * 1.1, 
+      if (innerType !== 'none' && innerVal) {
+        const isIcon = innerType === 'icon';
+        objects.push(new fabric.Textbox(String(innerVal), {
+          fontSize: isIcon ? radius * 1.4 : radius * 1.1, 
           fill: '#ffffff', 
           originX: 'center', 
           originY: 'center', 
           textAlign: 'center', 
-          fontFamily: 'sans-serif', 
-          fontWeight: '900', 
-          stroke: '#0f172a', 
-          strokeWidth: 0.5, 
-          textBackgroundColor: 'rgba(15, 23, 42, 0.4)' 
+          fontFamily: isIcon ? 'monospace' : 'sans-serif', 
+          fontWeight: 'bold', 
+          stroke: isIcon ? undefined : '#0f172a', 
+          strokeWidth: isIcon ? 0 : 0.5, 
+          textBackgroundColor: isIcon ? 'transparent' : 'rgba(15, 23, 42, 0.4)' 
         }));
       }
       

@@ -47,7 +47,9 @@ const Sidebar: React.FC = () => {
       id: newId,
       name: `Trumpet ${nextNumber}`,
       color: assignedColor,
-      symbol: 'X'
+      baseShape: 'circle' as const,
+      innerContentType: 'icon' as const,
+      innerContentValue: 'X'
     };
 
     addPerformer(newPerformer);
@@ -137,8 +139,13 @@ const Sidebar: React.FC = () => {
               {performers.map((p) => {
                 const position = currentSet?.positions?.[p.id] || { x: 0, y: 0 };
                 const isSelected = selectedPerformerId === p.id;
-                const availableSymbols = ['X', 'O', '▲', '■', '★', '♦'];
+                const availableIcons = ['X', 'O', '★', '♦', '+', '-'];
                 const quickColors = ['#22c55e', '#3b82f6', '#ec4899', '#f59e0b', '#a855f7', '#ef4444'];
+
+                const renderPreviewInner = () => {
+                  if (p.innerContentType === 'none') return null;
+                  return p.innerContentValue;
+                };
 
                 return (
                   <div 
@@ -180,11 +187,12 @@ const Sidebar: React.FC = () => {
                     <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
                       <div className="flex items-center gap-1.5">
                         <div 
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white font-bold shadow-inner relative" 
-                          style={{ backgroundColor: p.color }}
+                          className={`w-5 h-5 flex items-center justify-center text-[10px] text-white font-bold shadow-inner ${
+                            p.baseShape === 'circle' ? 'rounded-full' : p.baseShape === 'square' ? 'rounded-sm' : p.baseShape === 'triangle' ? 'clip-triangle' : 'clip-diamond'
+                          }`} 
+                          style={{ backgroundColor: p.color, clipPath: p.baseShape === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : p.baseShape === 'diamond' ? 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' : 'none' }}
                         >
-                          {p.symbol}
-                          {p.indexNumber && <span className="absolute -top-1 -right-1 bg-white text-slate-900 text-[8px] rounded-full w-3 h-3 flex items-center justify-center border border-slate-300">{p.indexNumber}</span>}
+                          {renderPreviewInner()}
                         </div>
                         <span className="text-slate-400">Pos:</span>
                       </div>
@@ -197,37 +205,86 @@ const Sidebar: React.FC = () => {
                     {editModeId === p.id && (
                       <div className="mt-2 p-2 bg-slate-900/90 rounded border border-slate-700/50 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                         
-                        {/* หมายเลข Index */}
+                        {/* 1. Base Shape Picker */}
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-400 min-w-[50px]">หมายเลข:</span>
-                          <input 
-                            type="text" 
-                            maxLength={3} 
-                            value={p.indexNumber || ''} 
-                            onChange={(e) => updatePerformer(p.id, { indexNumber: e.target.value })} 
-                            className="w-14 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs text-white text-center focus:outline-none focus:border-cyan-400" 
-                            placeholder="-" 
-                          />
-                        </div>
-
-                        {/* เลือกสัญลักษณ์ */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-400 min-w-[50px]">สัญลักษณ์:</span>
+                          <span className="text-[10px] text-slate-400 min-w-[50px]">รูปทรง:</span>
                           <div className="flex gap-1 flex-wrap">
-                            {availableSymbols.map((sym) => (
+                            {['circle', 'square', 'triangle', 'diamond'].map(shape => (
                               <button
-                                key={sym}
-                                onClick={() => updatePerformer(p.id, { symbol: sym })}
-                                className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center transition ${
-                                  p.symbol === sym ? 'bg-cyan-500 text-slate-950 scale-110' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                key={shape}
+                                onClick={() => updatePerformer(p.id, { baseShape: shape as any })}
+                                className={`px-2 py-1 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                                  p.baseShape === shape ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                                 }`}
-                              >{sym}</button>
+                              >
+                                {shape === 'circle' && 'O'}
+                                {shape === 'square' && '■'}
+                                {shape === 'triangle' && '▲'}
+                                {shape === 'diamond' && '♦'}
+                              </button>
                             ))}
                           </div>
                         </div>
 
-                        {/* เลือกสี */}
+                        {/* 2. Inner Content Type Toggle */}
                         <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400 min-w-[50px]">ด้านใน:</span>
+                          <div className="flex gap-1 flex-wrap">
+                            <button
+                              onClick={() => updatePerformer(p.id, { innerContentType: 'none', innerContentValue: '' })}
+                              className={`px-2 py-1 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                                p.innerContentType === 'none' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >None</button>
+                            <button
+                              onClick={() => updatePerformer(p.id, { innerContentType: 'number', innerContentValue: '1' })}
+                              className={`px-2 py-1 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                                p.innerContentType === 'number' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >Number</button>
+                            <button
+                              onClick={() => updatePerformer(p.id, { innerContentType: 'icon', innerContentValue: 'X' })}
+                              className={`px-2 py-1 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                                p.innerContentType === 'icon' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              }`}
+                            >Icon</button>
+                          </div>
+                        </div>
+
+                        {/* 3. Conditional Input/Picker for Inner Content */}
+                        {p.innerContentType === 'number' && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 min-w-[50px]">หมายเลข:</span>
+                            <input 
+                              type="text" 
+                              maxLength={3} 
+                              value={p.innerContentValue || ''} 
+                              onChange={(e) => updatePerformer(p.id, { innerContentValue: e.target.value })} 
+                              className="w-14 bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs text-white text-center focus:outline-none focus:border-cyan-400" 
+                              placeholder="1" 
+                            />
+                          </div>
+                        )}
+
+                        {p.innerContentType === 'icon' && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400 min-w-[50px]">ไอคอน:</span>
+                            <div className="flex gap-1 flex-wrap">
+                              {availableIcons.map((sym) => (
+                                <button
+                                  key={sym}
+                                  onClick={() => updatePerformer(p.id, { innerContentValue: sym })}
+                                  className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center transition ${
+                                    p.innerContentValue === sym ? 'bg-amber-500 text-slate-950 scale-110' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  }`}
+                                >{sym}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* เลือกสี */}
+                        <div className="flex items-center gap-2 mt-1 border-t border-slate-700/50 pt-2">
                           <span className="text-[10px] text-slate-400 min-w-[50px]">เปลี่ยนสี:</span>
                           <div className="flex items-center gap-1 flex-wrap flex-1">
                             {quickColors.map((color) => (
