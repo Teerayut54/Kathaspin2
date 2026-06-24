@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useProjectStore } from '../store/projectStore';
-import { Trash2, UserPlus, Clock, MapPin, Users, Settings2, Grid, ChevronLeft, Settings, Layers, ChevronsUp, ChevronUp, ChevronDown, ChevronsDown } from 'lucide-react';
+import { Trash2, UserPlus, Clock, MapPin, Users, Settings2, Grid, Settings, Layers, ChevronsUp, ChevronUp, ChevronDown, ChevronsDown } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
   const performers = useProjectStore(state => state.data.performers);
