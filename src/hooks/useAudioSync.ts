@@ -5,6 +5,7 @@ import { useProjectStore } from '../store/projectStore';
 export const useAudioSync = (containerRef: React.RefObject<HTMLDivElement | null>) => {
   const wavesurfer = useRef<WaveSurfer | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioDuration, setAudioDuration] = useState<number>(0);
   
   const setIsPlaying = useProjectStore(state => state.setIsPlaying);
   const setCurrentTime = useProjectStore(state => state.setCurrentTime);
@@ -26,10 +27,16 @@ export const useAudioSync = (containerRef: React.RefObject<HTMLDivElement | null
       container: containerRef.current,
       waveColor: '#4f46e5',
       progressColor: '#9333ea',
-      cursorColor: '#ffffff',
+      cursorColor: 'transparent',
+      cursorWidth: 0,
       height: 64,
       barWidth: 2,
       normalize: true,
+      interact: false,
+    });
+
+    wavesurfer.current.on('ready', () => {
+      setAudioDuration(wavesurfer.current?.getDuration() || 0);
     });
 
     wavesurfer.current.on('play', () => setIsPlaying(true));
@@ -45,6 +52,19 @@ export const useAudioSync = (containerRef: React.RefObject<HTMLDivElement | null
       }
     };
   }, [containerRef, setIsPlaying, setCurrentTime]);
+
+  // Sync wavesurfer with store currentTime when manually scrubbed
+  useEffect(() => {
+    const unsub = useProjectStore.subscribe((state, prevState) => {
+      if (state.currentTime !== prevState.currentTime && !state.isPlaying && wavesurfer.current) {
+        const wsTime = wavesurfer.current.getCurrentTime();
+        if (Math.abs(wsTime - state.currentTime) > 0.05) {
+           wavesurfer.current.setTime(state.currentTime);
+        }
+      }
+    });
+    return unsub;
+  }, []);
 
   // Load Audio File
   useEffect(() => {
@@ -129,5 +149,5 @@ export const useAudioSync = (containerRef: React.RefObject<HTMLDivElement | null
     useProjectStore.getState().setCurrentTime(0);
   };
 
-  return { setAudioFile, removeAudio, togglePlay, stop, hasAudio: !!audioFile };
+  return { setAudioFile, removeAudio, togglePlay, stop, hasAudio: !!audioFile, audioDuration };
 };

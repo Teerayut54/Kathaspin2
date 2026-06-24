@@ -6,13 +6,14 @@ interface BottomPanelProps {
   waveformRef: React.RefObject<HTMLDivElement | null>;
   handleAudioUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   hasAudio: boolean;
-  removeAudio: () => void; // 👈 เพิ่มสิ่งนี้เข้ามา
+  removeAudio: () => void;
+  currentTime: number;
+  duration: number;
 }
 
-const PPS = 30; // พิกเซลต่อหนึ่งวินาทีบนหน้าจอ
-
-const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUpload, hasAudio, removeAudio }) => {
-  const currentTime = useProjectStore(state => state.currentTime);
+const BottomPanel: React.FC<BottomPanelProps> = ({ 
+  waveformRef, handleAudioUpload, hasAudio, removeAudio, currentTime, duration 
+}) => {
   const sets = useProjectStore(state => state.data.sets);
   const addSet = useProjectStore(state => state.addSet);
   const currentSetIndex = useProjectStore(state => state.currentSetIndex);
@@ -20,41 +21,43 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
   const updateSetDuration = useProjectStore(state => state.updateSetDuration);
   const setCurrentTime = useProjectStore(state => state.setCurrentTime);
   
-  // เพิ่มตัวแปรสำหรับดึงฟังก์ชันจาก store
   const copySet = useProjectStore(state => state.copySet); 
   const removeSet = useProjectStore(state => state.removeSet); 
 
   const timelineTrackRef = useRef<HTMLDivElement>(null);
-  const [resizing, setResizing] = useState<{ setId: string; startX: number; startWidth: number } | null>(null);
+  const [resizing, setResizing] = useState<{ setIndex: number; startX: number; startDuration: number } | null>(null);
 
   const handleAddSet = () => {
     const lastSet = sets[sets.length - 1];
     addSet({
       setNumber: sets.length,
       title: `Set ${sets.length}`,
-      duration: 8, // ค่าเริ่มต้น 8 วินาทีสำหรับเซ็ตใหม่
+      duration: 8,
       positions: lastSet ? JSON.parse(JSON.stringify(lastSet.positions)) : {}
     });
     setCurrentSetIndex(sets.length);
   };
 
-  // ดักจับฟังก์ชันคลิกแถบไทม์ไลน์เพื่อกระโดดข้ามเวลา (Manual scrubbing)
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (resizing || !timelineTrackRef.current) return;
+    if (resizing || !timelineTrackRef.current || duration <= 0) return;
     const rect = timelineTrackRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
-    const clickedSeconds = clickX / PPS;
-    setCurrentTime(clickedSeconds);
+    const clickedPercentage = clickX / rect.width;
+    const clickedSeconds = clickedPercentage * duration;
+    setCurrentTime(Math.min(Math.max(clickedSeconds, 0), duration));
   };
 
   React.useEffect(() => {
     if (!resizing) return;
 
     const onMove = (e: MouseEvent) => {
+      if (!timelineTrackRef.current || duration <= 0) return;
+      const rect = timelineTrackRef.current.getBoundingClientRect();
       const deltaX = e.clientX - resizing.startX;
-      const deltaSeconds = deltaX / PPS;
-      const newDuration = Math.max(0.5, (resizing.startWidth / PPS) + deltaSeconds);
-      updateSetDuration(resizing.setId, newDuration);
+      const deltaPercentage = deltaX / rect.width;
+      const deltaSeconds = deltaPercentage * duration;
+      const newDuration = Math.max(0.5, resizing.startDuration + deltaSeconds);
+      updateSetDuration(resizing.setIndex, newDuration);
     };
 
     const onUp = () => {
@@ -68,15 +71,14 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [resizing, updateSetDuration]);
+  }, [resizing, duration, updateSetDuration]);
 
-  // คำนวณหาตำแหน่งสะสมเพื่อวาดกล่อง Set วางต่อกันตามแนวนอน
-  let accumulatedLeft = 0;
+  let accumulatedLeftPercent = 0;
+  const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className="bg-slate-800 border-t border-slate-700 p-4 flex flex-col gap-4 select-none">
       
-      {/* โซนการจัดส่งข้อมูลเสียง และปุ่มจัดการ Set */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <label className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded cursor-pointer text-xs font-bold text-slate-200 flex items-center gap-2 transition">
@@ -85,7 +87,6 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
             <input type="file" accept="audio/*" onChange={handleAudioUpload} className="hidden" />
           </label>
 
-          {/* 🛠️ ปุ่มลบเพลงสีแดง (จะแสดงผลขึ้นมาเฉพาะตอนที่ตรวจเจอไฟล์เพลงเท่านั้น) */}
           {hasAudio && (
             <button
               onClick={removeAudio}
@@ -98,12 +99,11 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
 
           <span className="text-xs text-slate-400 font-mono">
             เวลาปัจจุบัน: <span className="text-cyan-400 font-bold text-sm">{currentTime.toFixed(2)}s</span>
+            {duration > 0 && ` / ${duration.toFixed(2)}s`}
           </span>
         </div>
         
-        {/* 🛠️ แผงปุ่มจัดการเซ็ตขบวนแปรแถว */}
         <div className="flex items-center gap-2">
-          {/* ปุ่มคัดลอกเซ็ต (จะคัดลอกข้อมูลพิกัดของเซ็ตที่เลือกอยู่ ณ ปัจจุบันบน Canvas) */}
           <button 
             onClick={() => copySet(currentSetIndex)}
             className="bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition"
@@ -112,7 +112,6 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
             📋 คัดลอกเซ็ต
           </button>
 
-          {/* ปุ่มลบเซ็ต (จะซ่อน/ปิดการทำงานในกรณีที่เป็นเซ็ต 0 เพื่อเซฟระบบพัง) */}
           <button 
             onClick={() => removeSet(currentSetIndex)}
             disabled={currentSetIndex === 0}
@@ -131,68 +130,72 @@ const BottomPanel: React.FC<BottomPanelProps> = ({ waveformRef, handleAudioUploa
         </div>
       </div>
 
-      {/* บล็อกสนามไทม์ไลน์ปรับเปลี่ยนขนาดโครงสร้างรูป */}
       <div className="relative bg-slate-900 rounded border border-slate-700 p-2 overflow-x-auto min-h-[120px]">
-        
-        {/* แถบคลื่นเสียงจาก Wavesurfer */}
-        <div ref={waveformRef} className={`w-full ${hasAudio ? 'block opacity-60' : 'hidden'}`} />
-
-        {/* แทร็กสำหรับสร้างตำแหน่งและบล็อกยืดหด */}
-        <div 
-          ref={timelineTrackRef}
-          onClick={handleTimelineClick}
-          className="relative h-14 mt-2 w-full border-t border-slate-800 cursor-pointer"
-        >
-          {sets.map((set, idx) => {
-            const blockWidth = set.duration * PPS;
-            const currentLeft = accumulatedLeft;
-            accumulatedLeft += blockWidth; // ทบระยะเพิ่มขึ้นเพื่อวางต่อจากขอบเดิม
-
-            const isSelected = currentSetIndex === idx;
-
-            return (
-              <div
-                key={set.setNumber}
-                style={{ left: `${currentLeft}px`, width: `${blockWidth}px` }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentSetIndex(idx);
-                }}
-                className={`absolute h-10 top-2 rounded border flex items-center justify-between px-2 text-xs group transition-colors ${
-                  isSelected 
-                    ? 'bg-cyan-950 border-cyan-400 text-cyan-200' 
-                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <span className="font-bold truncate pointer-events-none">
-                  {set.title} ({set.duration.toFixed(1)}s)
-                </span>
-
-                {/* ตัวดึงปรับแต่งขอบขวาของกล่อง (Resize Handle) */}
-                {idx > 0 && (
-                  <div
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      setResizing({
-                        setId: set.setNumber.toString(),
-                        startX: e.clientX,
-                        startWidth: blockWidth,
-                      });
-                    }}
-                    className="absolute right-0 top-0 w-2 h-full cursor-ew-resize bg-cyan-500/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          {/* แถบสีแดงแสดงตำแหน่งปัจจุบัน (Playhead Marker) */}
+        <div style={{ minWidth: `${Math.max(duration * 30, 800)}px` }} className="relative w-full h-full flex flex-col">
+          
+          {/* 🌟 Unified Playhead (เส้นขาวเส้นเดียวลากยาวทะลุทุกแทร็ก) */}
           <div 
-            style={{ left: `${currentTime * PPS}px` }}
-            className="absolute top-0 w-0.5 h-14 bg-red-500 shadow-lg pointer-events-none transition-all duration-75"
+            style={{ left: `${playheadPercent}%` }}
+            className="absolute top-0 bottom-0 w-[2px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)] pointer-events-none transition-all duration-75 z-30"
           >
-            <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-red-500 rounded-full" />
+            {/* หัวเข็มหมุดด้านบนสุด (ให้ดูเหมือน Playhead จับได้) */}
+            <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-white rounded-full shadow-md" />
           </div>
+
+          {/* Waveform Track */}
+          <div className={`relative w-full h-16 shrink-0 ${hasAudio ? 'block' : 'hidden'}`}>
+            <div ref={waveformRef} className="w-full h-full opacity-60 pointer-events-none" />
+          </div>
+
+          {/* Timeline Track */}
+          <div 
+            ref={timelineTrackRef}
+            onClick={handleTimelineClick}
+            className="relative h-14 mt-2 w-full border-t border-slate-800 cursor-pointer shrink-0"
+          >
+            {sets.map((set, idx) => {
+              const blockWidthPercent = duration > 0 ? (set.duration / duration) * 100 : 0;
+              const currentLeftPercent = accumulatedLeftPercent;
+              accumulatedLeftPercent += blockWidthPercent;
+
+              const isSelected = currentSetIndex === idx;
+
+              return (
+                <div
+                  key={set.setNumber}
+                  style={{ left: `${currentLeftPercent}%`, width: `${blockWidthPercent}%` }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentSetIndex(idx);
+                  }}
+                  className={`absolute h-10 top-2 rounded border flex items-center justify-between px-2 text-xs group transition-colors ${
+                    isSelected 
+                      ? 'bg-cyan-950 border-cyan-400 text-cyan-200 z-10' 
+                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  <span className="font-bold truncate pointer-events-none">
+                    {set.title} ({set.duration.toFixed(1)}s)
+                  </span>
+
+                  {idx > 0 && (
+                    <div
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setResizing({
+                          setIndex: idx,
+                          startX: e.clientX,
+                          startDuration: set.duration,
+                        });
+                      }}
+                      className="absolute right-0 top-0 w-2 h-full cursor-ew-resize bg-cyan-500/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          
         </div>
       </div>
     </div>

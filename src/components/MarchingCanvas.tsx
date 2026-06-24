@@ -165,7 +165,7 @@ const MarchingCanvas: React.FC = () => {
 
           // วาดป้ายพิกัดแกน Y (ลอยทับหน้าเส้นตาราง)
           const sideLabel = new fabric.Textbox(`Y:${i}`, {
-            left: x + (xPos > 0 ? 32 : -32), 
+            left: x, 
             top: y, 
             fontSize: fontSize, 
             fontWeight: 'bold',
@@ -191,7 +191,7 @@ const MarchingCanvas: React.FC = () => {
       const label = i === 0 ? '0' : (i > 0 ? `R${i}` : `L${Math.abs(i)}`);
       const isCenter = i === 0;
 
-      [bottomY - 4, topY + 4].forEach((yPos, index) => {
+      [bottomY, topY].forEach((yPos) => {
         // วาดกรวยแกน X (ลอยทับหน้าเส้นตาราง)
         const markerCone = new fabric.Polygon([
           { x: 0, y: -coneSize/2 }, { x: -coneSize/2, y: coneSize/2 }, { x: coneSize/2, y: coneSize/2 }
@@ -210,13 +210,14 @@ const MarchingCanvas: React.FC = () => {
         // วาดป้ายพิกัดแกน X (ลอยทับหน้าเส้นตาราง)
         const markerLabel = new fabric.Textbox(label, {
           left: x, 
-          top: yPos + (index === 0 ? 16 : -24), 
+          top: yPos, 
           fontSize: fontSize + 1, 
           fontWeight: 'bold',
           fill: isCenter ? '#38bdf8' : '#e2e8f0', 
           fontFamily: 'monospace', 
           textAlign: 'center',
           originX: 'center',
+          originY: 'center',
           selectable: false, 
           evented: false,
           textBackgroundColor: 'rgba(11, 15, 25, 0.85)'
