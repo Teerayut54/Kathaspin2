@@ -77,37 +77,36 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
   const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="bg-slate-800 border-t border-slate-700 p-4 flex flex-col gap-4 select-none">
+    <div className="bg-slate-800 border-t border-slate-700 p-2 flex flex-col gap-2 select-none">
       
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <label className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded cursor-pointer text-xs font-bold text-slate-200 flex items-center gap-2 transition">
+          <label className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded cursor-pointer text-xs font-bold text-slate-200 flex items-center gap-2 transition">
             <Music size={14} />
-            <span>{hasAudio ? "เปลี่ยนไฟล์เสียง (.mp3)" : "อัปโหลดเสียงประกอบ"}</span>
+            <span>{hasAudio ? "เปลี่ยนไฟล์เสียง" : "อัปโหลดเสียง"}</span>
             <input type="file" accept="audio/*" onChange={handleAudioUpload} className="hidden" />
           </label>
 
           {hasAudio && (
             <button
               onClick={removeAudio}
-              className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs px-2.5 py-1.5 rounded font-bold transition flex items-center gap-1"
+              className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs px-2 py-1.5 rounded font-bold transition flex items-center gap-1"
               title="ลบไฟล์เพลงออกและใช้ตัวจำลองเวลาแทน"
             >
-              ❌ ลบเพลงออก
+              ❌ ลบ
             </button>
           )}
 
-          <span className="text-xs text-slate-400 font-mono">
-            เวลาปัจจุบัน: <span className="text-cyan-400 font-bold text-sm">{currentTime.toFixed(2)}s</span>
-            {duration > 0 && ` / ${duration.toFixed(2)}s`}
+          <span className="text-xs text-slate-400 font-mono flex items-center gap-1 ml-2">
+            เวลา: <span className="text-cyan-400 font-bold text-sm w-12 text-right">{currentTime.toFixed(2)}s</span>
+            {duration > 0 && <span className="text-slate-500">/ {duration.toFixed(2)}s</span>}
           </span>
         </div>
         
         <div className="flex items-center gap-2">
           <button 
             onClick={() => copySet(currentSetIndex)}
-            className="bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition"
-            title="ก๊อปปี้ตำแหน่งจากเซ็ตปัจจุบันไปสร้างเป็นเซ็ตใหม่ต่อท้ายสุด"
+            className="bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 text-xs font-bold px-2.5 py-1.5 rounded flex items-center gap-1 transition"
           >
             📋 คัดลอกเซ็ต
           </button>
@@ -115,43 +114,42 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
           <button 
             onClick={() => removeSet(currentSetIndex)}
             disabled={currentSetIndex === 0}
-            className={`text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition ${
+            className={`text-xs font-bold px-2.5 py-1.5 rounded flex items-center gap-1 transition ${
               currentSetIndex === 0 
                 ? 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed' 
                 : 'bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-800'
             }`}
           >
-            🗑️ ลบเซ็ต
+            🗑️ ลบ
           </button>
 
-          <button onClick={handleAddSet} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-3 py-1.5 rounded flex items-center gap-1 transition">
-            <Plus size={14} /> เพิ่มเซ็ตใหม่
+          <button onClick={handleAddSet} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs px-2.5 py-1.5 rounded flex items-center gap-1 transition">
+            <Plus size={14} /> เพิ่มเซ็ต
           </button>
         </div>
       </div>
 
-      <div className="relative bg-slate-900 rounded border border-slate-700 p-2 overflow-x-auto min-h-[120px]">
-        <div style={{ minWidth: `${Math.max(duration * 30, 800)}px` }} className="relative w-full h-full flex flex-col">
+      <div className="relative bg-slate-900 rounded border border-slate-700 p-1.5 overflow-x-auto min-h-[80px]">
+        <div style={{ minWidth: `${Math.max(duration * 30, 800)}px` }} className="relative w-full h-full flex flex-col gap-1">
           
-          {/* 🌟 Unified Playhead (เส้นขาวเส้นเดียวลากยาวทะลุทุกแทร็ก) */}
+          {/* 🌟 Unified Playhead */}
           <div 
             style={{ left: `${playheadPercent}%` }}
             className="absolute top-0 bottom-0 w-[2px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)] pointer-events-none transition-all duration-75 z-30"
           >
-            {/* หัวเข็มหมุดด้านบนสุด (ให้ดูเหมือน Playhead จับได้) */}
             <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-white rounded-full shadow-md" />
           </div>
 
-          {/* Waveform Track */}
-          <div className={`relative w-full h-16 shrink-0 ${hasAudio ? 'block' : 'hidden'}`}>
+          {/* Waveform Track (Reduced Height) */}
+          <div className={`relative w-full h-[40px] shrink-0 ${hasAudio ? 'block' : 'hidden'}`}>
             <div ref={waveformRef} className="w-full h-full opacity-60 pointer-events-none" />
           </div>
 
-          {/* Timeline Track */}
+          {/* Timeline Track (Reduced Height) */}
           <div 
             ref={timelineTrackRef}
             onClick={handleTimelineClick}
-            className="relative h-14 mt-2 w-full border-t border-slate-800 cursor-pointer shrink-0"
+            className="relative h-10 w-full border-t border-slate-800 cursor-pointer shrink-0"
           >
             {sets.map((set, idx) => {
               const blockWidthPercent = duration > 0 ? (set.duration / duration) * 100 : 0;
@@ -168,7 +166,7 @@ const BottomPanel: React.FC<BottomPanelProps> = ({
                     e.stopPropagation();
                     setCurrentSetIndex(idx);
                   }}
-                  className={`absolute h-10 top-2 rounded border flex items-center justify-between px-2 text-xs group transition-colors ${
+                  className={`absolute h-8 top-1 rounded border flex items-center justify-between px-2 text-[10px] group transition-colors ${
                     isSelected 
                       ? 'bg-cyan-950 border-cyan-400 text-cyan-200 z-10' 
                       : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'

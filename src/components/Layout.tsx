@@ -23,14 +23,14 @@ const Layout: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-slate-900 text-slate-100 overflow-hidden select-none">
+    <div className="flex flex-col h-screen w-screen bg-slate-900 text-slate-100 overflow-hidden select-none">
       {/* 1. Header */}
       <Header togglePlay={togglePlay} stop={stop} />
       
       {/* 2. Main Workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <div className="w-64 border-r border-slate-700 bg-slate-800 flex flex-col shrink-0 overflow-hidden">
+        {/* Left Sidebar (Dynamic Width) */}
+        <div className="shrink-0 flex h-full z-20 border-r border-slate-700 bg-slate-800">
           <Sidebar />
         </div>
         
@@ -43,7 +43,7 @@ const Layout: React.FC = () => {
       </div>
       
       {/* 3. Bottom Panel */}
-      <div className="h-44 border-t border-slate-700 bg-slate-800 shrink-0 flex flex-col">
+      <div className="border-t border-slate-700 bg-slate-800 shrink-0 flex flex-col">
         <BottomPanel 
           waveformRef={waveformRef} 
           handleAudioUpload={handleAudioUpload} 

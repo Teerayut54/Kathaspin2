@@ -29,7 +29,7 @@ export const useAudioSync = (containerRef: React.RefObject<HTMLDivElement | null
       progressColor: '#9333ea',
       cursorColor: 'transparent',
       cursorWidth: 0,
-      height: 64,
+      height: 40,
       barWidth: 2,
       normalize: true,
       interact: false,

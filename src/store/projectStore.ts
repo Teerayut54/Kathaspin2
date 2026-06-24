@@ -9,6 +9,7 @@ export interface Performer {
   name: string;
   color: string;
   symbol: string;
+  indexNumber?: string;
 }
 
 export interface SetPositions {
@@ -71,6 +72,7 @@ interface ProjectState {
   copySet: (setIndex: number) => void;
   removeSet: (setIndex: number) => void;
   setSelectedPerformerId: (id: string | null) => void;
+  movePerformer: (id: string, direction: 'front' | 'forward' | 'backward' | 'back') => void;
 
   cones: Cone[]; 
   addCone: (cone: Cone) => void;
@@ -189,6 +191,28 @@ export const useProjectStore = create<ProjectState>((set) => ({
       },
       selectedPerformerId: state.selectedPerformerId === id ? null : state.selectedPerformerId,
     };
+  }),
+
+  movePerformer: (id, direction) => set((state) => {
+    const performers = [...state.data.performers];
+    const index = performers.findIndex(p => p.id === id);
+    if (index === -1) return state;
+
+    const [performer] = performers.splice(index, 1);
+
+    if (direction === 'front') {
+      performers.push(performer); // highest z-index
+    } else if (direction === 'back') {
+      performers.unshift(performer); // lowest z-index
+    } else if (direction === 'forward') {
+      const newIndex = Math.min(performers.length, index + 1);
+      performers.splice(newIndex, 0, performer);
+    } else if (direction === 'backward') {
+      const newIndex = Math.max(0, index - 1);
+      performers.splice(newIndex, 0, performer);
+    }
+
+    return { data: { ...state.data, performers } };
   }),
 
   addSet: (newSet) => set((state) => ({

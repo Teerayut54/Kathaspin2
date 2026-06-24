@@ -85,6 +85,23 @@ const MarchingCanvas: React.FC = () => {
     canvas.on('selection:updated', handleSelection);
     canvas.on('selection:cleared', () => setSelectedPerformerId(null));
 
+    // 🌟 Task 1.4: Mouse-hover tooltip displaying ONLY the Performer's Name
+    canvas.on('mouse:over', (e) => {
+      const target = e.target as any;
+      if (target && target.id && !target.isCone) {
+        const p = useProjectStore.getState().data.performers.find(p => p.id === target.id);
+        if (p) {
+          const wrapper = canvas.getElement().parentElement;
+          if (wrapper) wrapper.title = p.name;
+        }
+      }
+    });
+
+    canvas.on('mouse:out', () => {
+      const wrapper = canvas.getElement().parentElement;
+      if (wrapper) wrapper.title = '';
+    });
+
     return () => {
       canvas.dispose();
       performersGroups.current.clear();
@@ -237,23 +254,58 @@ const MarchingCanvas: React.FC = () => {
     performersGroups.current.forEach(group => canvas.remove(group));
     performersGroups.current.clear();
 
-    const radius = 9.5; // ลดรัศมีจาก 12 เป็น 9.5 เพื่อลดการซ้อนทับ
+    const radius = 9.5; 
 
+    // 🌟 Task 1.6: Fabric.js natively renders in array order. 
+    // Since our array is sorted by `movePerformer` in Zustand, this loop implicitly commits the correct stacked rendering cycle!
     performers.forEach((performer) => {
       const pos = currentSet.positions[performer.id] || { x: 0, y: 0 };
       const { x, y } = gridToCanvas(pos.x, pos.y, CANVAS_WIDTH, CANVAS_HEIGHT, canvasConfig.gridMaxX, canvasConfig.gridMaxY);
       
       const isSelected = selectedPerformerId === performer.id;
 
-      const circle = new fabric.Circle({ 
-        radius: radius, fill: performer.color, originX: 'center', originY: 'center', stroke: isSelected ? '#22d3ee' : '#ffffff', strokeWidth: isSelected ? 2 : 1.2 
-      });
+      const commonConfig = {
+        originX: 'center', originY: 'center',
+        fill: performer.color,
+        stroke: isSelected ? '#22d3ee' : '#ffffff',
+        strokeWidth: isSelected ? 2 : 1.2
+      };
+
+      let baseShape;
+      if (performer.symbol === '▲') {
+        baseShape = new fabric.Triangle({ width: radius * 2.2, height: radius * 2.2, ...commonConfig });
+      } else if (performer.symbol === '■') {
+        baseShape = new fabric.Rect({ width: radius * 1.8, height: radius * 1.8, rx: 2, ry: 2, ...commonConfig });
+      } else {
+        baseShape = new fabric.Circle({ radius, ...commonConfig });
+      }
+
+      const objects: any[] = [baseShape];
+
+      // Draw text symbol for unsupported native geometric shapes
+      if (!['▲', '■'].includes(performer.symbol)) {
+        objects.push(new fabric.Textbox(performer.symbol, { 
+          fontSize: radius * 1.2, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
+        }));
+      }
+
+      // 🌟 Task 1.5: Render Index Number directly in center
+      if (performer.indexNumber) {
+        objects.push(new fabric.Textbox(performer.indexNumber, {
+          fontSize: radius * 1.1, 
+          fill: '#ffffff', 
+          originX: 'center', 
+          originY: 'center', 
+          textAlign: 'center', 
+          fontFamily: 'sans-serif', 
+          fontWeight: '900', 
+          stroke: '#0f172a', 
+          strokeWidth: 0.5, 
+          textBackgroundColor: 'rgba(15, 23, 42, 0.4)' 
+        }));
+      }
       
-      const label = new fabric.Textbox(performer.symbol, { 
-        fontSize: radius * 1.2, fill: '#fff', originX: 'center', originY: 'center', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold'
-      });
-      
-      const group = new fabric.Group([circle, label], { 
+      const group = new fabric.Group(objects, { 
         left: x, top: y, originX: 'center', originY: 'center', hasControls: false, hasBorders: isSelected, borderColor: '#22d3ee', hoverCursor: 'grab', moveCursor: 'grabbing'
       });
       
