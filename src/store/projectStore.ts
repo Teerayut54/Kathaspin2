@@ -35,14 +35,6 @@ export interface CanvasConfig {
   gridMaxY: number; // จำนวนบล็อกตารางแนวลึก (เช่น 12)
 }
 
-export interface Cone {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  color: string;
-}
-
 interface ProjectState {
   data: ProjectData;
   currentSetIndex: number; 
@@ -75,39 +67,19 @@ interface ProjectState {
   setSelectedPerformerId: (id: string | null) => void;
   movePerformer: (id: string, direction: 'front' | 'forward' | 'backward' | 'back') => void;
 
-  cones: Cone[]; 
-  addCone: (cone: Cone) => void;
-  removeCone: (id: string) => void;
-  updateConePosition: (id: string, x: number, y: number) => void;
-  generateConeByCoords: (x: number, y: number, name?: string) => void;
-  
+
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
   data: {
     metadata: { projectName: 'My Marching Show' },
-    performers: [
-      { id: 'P01', name: 'Trumpet 1', color: '#ef4444', baseShape: 'circle', innerContentType: 'icon', innerContentValue: 'X' },
-      { id: 'C01', name: 'Drum Major', color: '#3b82f6', baseShape: 'circle', innerContentType: 'icon', innerContentValue: 'O' }
-    ],
+    performers: [],
     sets: [
       {
         setNumber: 0,
         title: 'Start',
         duration: 0, 
-        positions: {
-          'P01': { x: -3, y: 4 },
-          'C01': { x: 0, y: 2 }
-        }
-      },
-      {
-        setNumber: 1,
-        title: 'First Move',
-        duration: 16,
-        positions: {
-          'P01': { x: 3, y: 8 },
-          'C01': { x: 0, y: 5 }
-        }
+        positions: {}
       }
     ]
   },
@@ -130,25 +102,11 @@ export const useProjectStore = create<ProjectState>((set) => ({
     const validatedMaxX = Math.max(4, Math.floor(maxX));
     const validatedMaxY = Math.max(4, Math.floor(maxY));
 
-    // คำนวณจุดปักกรวยมาตรฐานอัตโนมัติ (อิงพิกัด 0 เป็นจุดกึ่งกลาง)
-    const autoCones: Cone[] = [
-      // 🔽 โซนขอบสนามด้านล่าง (Y = 0)
-      { id: 'auto-cone-bl', name: `L${validatedMaxX}`, x: -validatedMaxX, y: 0, color: '#ff6b1a' },
-      { id: 'auto-cone-bc', name: '0 (Front)', x: 0, y: 0, color: '#0ea5e9' }, // จุดศูนย์ตรงหน้าสแตนด์
-      { id: 'auto-cone-br', name: `R${validatedMaxX}`, x: validatedMaxX, y: 0, color: '#ff6b1a' },
-
-      // 🔼 โซนขอบสนามด้านบน/แนวลึกสุด (Y = maxY)
-      { id: 'auto-cone-tl', name: `L${validatedMaxX}`, x: -validatedMaxX, y: validatedMaxY, color: '#ff6b1a' },
-      { id: 'auto-cone-tc', name: '0 (Back)', x: 0, y: validatedMaxY, color: '#0ea5e9' },
-      { id: 'auto-cone-tr', name: `R${validatedMaxX}`, x: validatedMaxX, y: validatedMaxY, color: '#ff6b1a' }
-    ];
-
     return {
       canvasConfig: {
         gridMaxX: validatedMaxX,
         gridMaxY: validatedMaxY
-      },
-      cones: autoCones // อัปเดตรายชื่อกรวยทั้งหมดในระบบให้ทันทีอัตโนมัติ
+      }
     };
   }),
 
@@ -292,28 +250,5 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setSelectedPerformerId: (id) => set({ selectedPerformerId: id }),
 
-  // 🛠️ ค่ากรวยเริ่มต้นปักไว้ที่ L12 และ R12 ล้อตามขนาดตารางแกน X: 12
-  cones: [
-    { id: 'auto-cone-bl', name: 'L12', x: -12, y: 0, color: '#ff6b1a' },
-    { id: 'auto-cone-bc', name: '0 (Front)', x: 0, y: 0, color: '#0ea5e9' },
-    { id: 'auto-cone-br', name: 'R12', x: 12, y: 0, color: '#ff6b1a' },
-    { id: 'auto-cone-tl', name: 'L12', x: -12, y: 12, color: '#ff6b1a' },
-    { id: 'auto-cone-tc', name: '0 (Back)', x: 0, y: 12, color: '#0ea5e9' },
-    { id: 'auto-cone-tr', name: 'R12', x: 12, y: 12, color: '#ff6b1a' }
-  ],
 
-  addCone: (cone) => set((state) => ({ cones: [...state.cones, cone] })),
-  removeCone: (id) => set((state) => ({ cones: state.cones.filter(c => c.id !== id) })),
-  updateConePosition: (id, x, y) => set((state) => ({ cones: state.cones.map(c => c.id === id ? { ...c, x, y } : c) })),
-  generateConeByCoords: (x, y, name) => set((state) => {
-    const nextNum = state.cones.length + 1;
-    const newCone: Cone = {
-      id: `cone-${Date.now()}`,
-      name: name || `กรวย ${nextNum}`,
-      x: x,
-      y: y,
-      color: '#ff6b1a' 
-    };
-    return { cones: [...state.cones, newCone] };
-  }),
 }));
